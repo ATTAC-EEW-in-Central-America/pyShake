@@ -4,10 +4,18 @@ eewsimpy package
 Submodules
 ----------
 
-eewsimpy.inv2tt module
-----------------------
+eewsimpy.event module
+---------------------
 
-.. automodule:: eewsimpy.inv2tt
+.. automodule:: eewsimpy.event
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+eewsimpy.util module
+--------------------
+
+.. automodule:: eewsimpy.util
    :members:
    :undoc-members:
    :show-inheritance:
