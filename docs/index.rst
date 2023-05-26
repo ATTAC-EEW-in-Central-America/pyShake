@@ -6,19 +6,13 @@
 Welcome to EEWsimpy's documentation!
 ====================================
 
-
 .. toctree::
    :maxdepth: 4
    :caption: Contents:
 
+   install
+   support
    modules
-
-
-Installing from source
-======================
-.. code-block:: sh
-   pip install git+https://github.com/ATTAC-EEW-in-Central-America/EEWsimpy.git
-
 
 Indices and tables
 ==================
