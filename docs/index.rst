@@ -13,6 +13,7 @@ Welcome to EEWsimpy's documentation!
    install
    support
    modules
+   contribute
 
 Indices and tables
 ==================
