@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name='EEWsimpy',
-    version='0.0.0',
+    version='0.0.1',
     author='Fred Massin',
     author_email='fmassin@ethz.ch',
     description='Testing installation of Package',

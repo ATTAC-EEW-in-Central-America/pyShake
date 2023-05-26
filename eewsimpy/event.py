@@ -21,18 +21,13 @@ def leadtimes(inventory,
 
     Each EEW lead time is defined for a given seismic event and EEW target. It is assumed as the delay between the arrival of the P-wave at the 4th closest station to the event and the arrival of the S-wave at the EEW target. However, in practice, EEW is required before the shaking at the EEW target exceeds the threshold for damage, which can be different from the S-wave arrival.
 
-    :example:
+    .. code:: python
 
-    >>> from obspy.clients.fdsn.client import Client
-    >>> inv = Client('ETH').get_stations(level='channel')
-    >>> cat = Client('ETH').get_events(limit=1,orderby='magnitude',maxdepth=10000)
-    >>> from eewsimpy.event import leadtime
-    >>> leadtimes(inv, cat, target=[8.54690,47.37850])
-    4 th station at  5.966346773701827  km from event
-    Event is  148.17505665039948  km from target
-    P wave travel time to  4 th station: 2.007280372085966  s
-    S travel time to target:  43.249257844369964  s
-    array([41.24197747])
+        from obspy.clients.fdsn.client import Client
+        inv = Client('ETH').get_stations(level='channel')
+        cat = Client('ETH').get_events(limit=1,orderby='magnitude',maxdepth=10000)
+        from eewsimpy.event import leadtime
+        leadtimes(inv, cat, target=[8.54690,47.37850])
 
     :param inventory: The instrument metadata inventory.
     :type inventory: :external:py:class:`obspy.core.inventory.inventory.Inventory` 
