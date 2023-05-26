@@ -6,12 +6,8 @@ from obspy.geodetics.base import gps2dist_azimuth
 def leadtimes(inventory,
               catalog,
               target,
-              declust=0.01, #degrees
-              min_station_number=4,#minimum number of required station
-              flat_latency={'SV.*.00.HN*':1.,
-                            'GT*':5,
-                            'SV*':2,
-                            '*':3},
+              declust=0.01, 
+              min_station_number=4,
               mtodeg=2*6371000*pi/360,
               model='iasp91',
               debug=False
@@ -39,8 +35,6 @@ def leadtimes(inventory,
     :type declust: :py:class:`float`
     :param min_station_number: Minimum number of required stations. Default is 4.
     :type min_station_number: :py:class:`int`
-    :param flat_latency: Dictionary specifying the flat latency values for different station patterns. Default values are provided.
-    :type flat_latency: :py:class:`dict`
     :param mtodeg: Conversion factor from kilometers to degrees. Default is calculated based on Earth's radius.
     :type mtodeg: :py:class:`float`
     :param model: Time travel tables used for P-wave and S-wave travel times. Default is provided.
@@ -57,8 +51,7 @@ def leadtimes(inventory,
     else:
         # Stations coordinates, one station per clusters
         statlats,statlons,statoff = inv2coord(inventory,
-                                            declust=declust,
-                                            flat_latency=flat_latency)    
+                                              declust=declust)    
 
     mod = TauPyModel(model=model)
     leadtime = zeros(len(catalog))

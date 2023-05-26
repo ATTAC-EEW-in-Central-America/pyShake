@@ -1,7 +1,7 @@
 from fnmatch import fnmatch
 def inv2coord(inventory,
               declust=0.01,
-              flat_latency={'*':3}):
+              flat_latency={'*':0}):
     """
     Returns the list of stations latitudes and longitudes, 
     omiting old stations being too close to another one

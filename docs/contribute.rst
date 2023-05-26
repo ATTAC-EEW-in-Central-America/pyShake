@@ -36,7 +36,7 @@ Please also be patient with the maintenance team, and remember that your help is
 How to PR from fork branch
 --------------------------
 
-1. Create a fork of the main project online at https://github.com/SED-EEW/SED-EEW-SeisComP-contributions 
+1. Create a fork of the main project online at https://github.com/ATTAC-EEW-in-Central-America/EEWsimpy
 2. Clone the main project, and go in the clone:
 
     .. code:: sh
