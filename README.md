@@ -1,0 +1,1 @@
+# EEW Simulation Package for Python (EEWsimpy)
