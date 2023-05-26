@@ -35,9 +35,9 @@ def leadtimes(inventory,
     array([41.24197747])
 
     :param inventory: The instrument metadata inventory.
-    :type inventory: :py:class:`obspy.core.inventory.inventory`
+    :type inventory: :external:py:class:`obspy.core.inventory.inventory.Inventory` 
     :param catalog: The seismic event catalog.
-    :type catalog: :py:class:`obspy.core.catalog.catalog`
+    :type catalog: :external:py:class:`obspy.core.event.Catalog`
     :param target: The EEW target coordinates (longitude, latitude).
     :type target: :py:class:`list` of :py:class:`float`
     :param declust: Clustering threshold in degrees for station coordinates. Default is 0.01 degrees.
