@@ -86,3 +86,102 @@ def tttinterp(model='iasp91',
         ttt[phases] = interp1d(distances,arrivals)
         #time = ttt[phases](dist)
     return ttt
+
+from shapely.geometry import LineString
+import cartopy.io.shapereader as shpreader
+from shapely.ops import nearest_points
+from obspy.geodetics.base import gps2dist_azimuth
+import numpy
+
+def eventcountrydistance(countryname, 
+                         events, 
+                         res=1, 
+                         defaultdepth=5,
+                         defaultepd=2,
+                         quickndirty=False):
+    
+    """Compute the distance from given hypocenter(s) to given country.
+
+    In case the hypocenter is within the country, the output distance is taken from hypocenter depth (default to 5 km).
+
+    .. code:: python
+
+        from obspy.clients.fdsn.client import Client
+        cat = Client('ETH').get_events(limit=1,orderby='magnitude',maxdepth=10000)
+
+        from eewsimpy.util import eventcountrydistance
+        events = [[ e.preferred_origin().longitude, 
+                    e.preferred_origin().latitude, 
+                    e.preferred_origin().depth/1000 ] for e in cat]
+        countrydists = eventcountrydistance(country, events)
+
+    :param countryname: The country name.
+    :type countryname: :py:class:`string` 
+    :param events: The event(s) hypocenter coordinates.
+    :type events: :py:class:`list` of :py:class:`list` e.g., [[lo1,la1],[lo2,la2,z2]].
+
+    :return: Country distance for each event in the input list.
+    :rtype: :py:class:`list`
+    """
+    
+    single=False
+    if not isinstance(events[0],(list,tuple)) :
+        single=True
+        events=[events]
+
+    if False in [len(e)>2 for e in events]:
+        print('ERROR: Input(s) are not at least 2d:')
+        print(events)
+
+    for e,event in enumerate(events):
+        if len(event)==5:
+            elon = event[0] + event[3]/111.2 * numpy.sin(numpy.deg2rad(event[4]))
+            elat = event[1] + event[3]/111.2 * numpy.cos(numpy.deg2rad(event[4]))
+
+            elon = [event[0]]+[l for l in numpy.linspace(event[0],elon,int(event[3]/res))]+[elon]
+            elat = [event[1]]+[l for l in numpy.linspace(event[1],elat,int(event[3]/res))]+[elat]
+
+            events[e] = LineString([(elon[p],elat[p]) for p in range(len(elon))])
+            events[e].depth = event[2]
+        elif len(event)==3:
+            events[e] = LineString([(event[0],event[1]), (event[0],event[1])])
+            events[e].depth = event[2]
+        elif len(event)==2:
+            events[e] = LineString([(event[0],event[1]), (event[0],event[1])])
+            events[e].depth = defaultdepth
+        else:
+            print('ERROR: Input are not at least 2d:')
+            print(event)
+        if events[e].depth is None:
+            print('WARNING: Event (%s) depth is None, using %s default depth)'%(','.join(['%s'%f for f in event]), defaultdepth))
+            events[e].depth = defaultdepth
+    
+    distances=[None for e in events]
+    url = shpreader.natural_earth(resolution='110m',
+                                        category='cultural',
+                                        name='admin_0_countries')
+    reader = shpreader.Reader(url)
+    countries = reader.records()
+    country = [country for country in countries        if countryname.lower() in country.attributes['NAME'].lower() ]
+    if not len(country):
+        print('ERROR: Could not find %s in [%s]'%(countryname,','.join([country.attributes['NAME'] for country in countries])))
+    else:
+        if len(country)>1:
+            print('WARNING: Considering the first of [%s] as matching [%s]'%(','.join([c.attributes['NAME'] for c in country]),countryname))
+        country=country[0]
+        
+        for e,event in enumerate(events):
+            if country.geometry.intersects(event):
+                #print('INFO: Event intersects %s using depth %d km as country distance'%(countryname, event.depth))
+                distances[e] = ( event.depth**2 + defaultepd**2 )**.5
+            else:
+                if quickndirty:
+                    print('WARNING: Event outside %s using shapely distance as country distance (can be VERY incorrect)'%(countryname))
+                    distances[e] = ((country.geometry.distance(event)*111.2)**2 + event.depth**2)**.5 
+                else:
+                    impact_trajectory = nearest_points(event,country.geometry)
+                    impact_trajectory = [c for p in impact_trajectory for c in p.coords[:][0][::-1]]
+                    distances[e] = ((gps2dist_azimuth(*impact_trajectory)[0]/1000)**2 + event.depth**2)**.5
+    if single:
+        return distances[0]
+    return distances
