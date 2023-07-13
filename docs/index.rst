@@ -7,7 +7,7 @@ Welcome to EEWsimpy's documentation!
 ====================================
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 3
    :caption: Contents:
 
    install
