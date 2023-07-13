@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.abspath('..'))
 project = 'EEWsimpy'
 copyright = '2023, Fred Massin'
 author = 'Fred Massin'
-release = '0.0.1'
+release = '0.0.2'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -47,5 +47,5 @@ html_theme = 'furo'
 html_static_path = ['_static']
 
 intersphinx_mapping = {'obspy': ('https://docs.obspy.org/', None),
-                       'python': ('https://docs.python.org/3/', None)
+                       'python': ('https://docs.python.org/3/', None),
                        }
