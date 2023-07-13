@@ -1,4 +1,19 @@
+from obspy.geodetics.base import gps2dist_azimuth
+import numpy
 from fnmatch import fnmatch
+try:
+    from shapely.geometry import LineString
+    from shapely.ops import nearest_points
+except Exception as e:
+    print('shapely skipped')
+    print(e)
+try:
+    import cartopy.io.shapereader as shpreader
+except Exception as e:
+    print('cartopy skipped')
+    print(e)
+
+
 def inv2coord(inventory,
               declust=0.01,
               flat_latency={'*':0}):
@@ -87,11 +102,7 @@ def tttinterp(model='iasp91',
         #time = ttt[phases](dist)
     return ttt
 
-from shapely.geometry import LineString
-import cartopy.io.shapereader as shpreader
-from shapely.ops import nearest_points
-from obspy.geodetics.base import gps2dist_azimuth
-import numpy
+
 
 def eventcountrydistance(countryname, 
                          events, 
