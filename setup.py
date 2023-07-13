@@ -17,5 +17,5 @@ setuptools.setup(
     },
     license='AGPL-3.0',
     packages=['eewsimpy'],
-    install_requires=[],#'obspy'
+    install_requires=['obspy','shapely','cartopy']
 )

@@ -1,5 +1,7 @@
 furo
 obspy
 sphinx_copybutton
+geos
+proj
 shapely
 cartopy

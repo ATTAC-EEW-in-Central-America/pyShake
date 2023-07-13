@@ -16,7 +16,9 @@ We maintain the EEW Simulation Package for Python as an open-source project for 
         python -m pip uninstall eewsimpy 
         python -m pip install ./  
 
-2. Make sure all features are documented and test documentation with (requires `sphinx` installed) and check the result (open `_build/html/index.html`):
+2. Make sure all dependencies are listed in `requirements.txt`.
+3. Make sure version number is upgraded in `setup.py` in order to trigger `pip` update and consistent with `docs/conf.py` (variable `release`).
+4. Make sure all features are documented and test documentation with (requires `sphinx` installed) and check the result (open `_build/html/index.html`):
    
     .. code:: sh
 
@@ -24,9 +26,9 @@ We maintain the EEW Simulation Package for Python as an open-source project for 
         cd docs 
         make clean html
 
-3. Submit your contribution via a pull request from a branch of a fork, see the example below.
-4. Please make sure your commits and pull requests are properly described following common best practices such as https://www.atlassian.com/blog/git/written-unwritten-guide-pull-requests.
-5. Know that the title of your pull request will be used as the default merge message for all squashed commits (https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/configuring-commit-squashing-for-pull-requests).
+5. Submit your contribution via a pull request from a branch of a fork, see the example below.
+6. Please make sure your commits and pull requests are properly described following common best practices such as https://www.atlassian.com/blog/git/written-unwritten-guide-pull-requests.
+7. Know that the title of your pull request will be used as the default merge message for all squashed commits (https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/configuring-commit-squashing-for-pull-requests).
 
 Please also be patient with the maintenance team, and remember that your help is very welcomed!
 
