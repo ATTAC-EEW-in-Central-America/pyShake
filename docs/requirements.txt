@@ -1,7 +1,7 @@
 furo
 obspy
 sphinx_copybutton
-geos
+geos >= 3.7.2
 proj
 shapely
 cartopy
