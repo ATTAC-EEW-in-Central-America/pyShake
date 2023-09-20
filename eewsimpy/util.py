@@ -2,7 +2,7 @@ from obspy.geodetics.base import gps2dist_azimuth
 import numpy
 from fnmatch import fnmatch
 try:
-    from shapely.geometry import LineString
+    from shapely.geometry import LineString, Polygon
     from shapely.ops import nearest_points
 except Exception as e:
     print('shapely skipped')
@@ -13,6 +13,7 @@ except Exception as e:
     print('cartopy skipped')
     print(e)
 
+from eewsimpy import gmm
 
 def inv2coord(inventory,
               declust=0.01,
@@ -196,3 +197,96 @@ def eventcountrydistance(countryname,
     if single:
         return distances[0]
     return distances
+
+
+    
+def polygonthreshold(polygon,
+                     countryname='Switzerland',
+                     minintensity=4,
+                     mineventdepth=1,
+                     minepicentraldistance=1,
+                     groundmotionmodel=gmm.gm,
+                     quickndirty=False,
+                     **kwargs):
+    """The function `polygonthreshold` calculates the minimum magnitude of an earthquake required to reach a given shaking intensity level anywhere inside a given country.
+
+    .. code:: python
+
+        from eewsimpy.util import polygonthreshold
+
+        # a polygon over Zurich
+        polygon=[(8,47), 
+                (9,47), 
+                (9,47.5), 
+                (8,47.5)]
+
+        # the minimum magnitude to reach MMI 3 in Switzerland 
+        # from any event in the polygon over Zurich
+        # `s = 0` : No amplification
+        polygonthreshold(polygon, 
+                        countryname = 'Switzerland', 
+                        minintensity = 3, 
+                        s = 0) 
+        # 0.97
+
+        # the minimum magnitude to reach MMI 3 in Italy 
+        # from any event in the polygon over Zurich
+        # `s = 1` : An amplification of 1 intensity unit 
+        polygonthreshold(polygon, 
+                        countryname = 'Italy', 
+                        minintensity = 3, 
+                        s = 1) 
+        # 3.99
+
+    :param polygon: The polygon parameter is a set of coordinates that define the shape of the polygon. It is used to determine if the event intersects with the specified country
+    :type polygon: :py:class:`list` of :py:class:`list` e.g., [[lo1,la1],[lo2,la2]].
+    :param countryname: The name of the country where the intensity is evaluated. The default value is 'Switzerland', defaults to Switzerland (optional)
+    :type countryname: :py:class:`str` 
+    :param minintensity: The minimum intensity threshold for the polygon. Any earthquake with an intensity below this threshold will not be considered, defaults to 4 (optional)
+    :type minintensity: :py:class:`float`    
+    :param mineventdepth: The mineventdepth parameter represents the depth of the event in kilometers. It is used to calculate the distance between the event and the polygon, defaults to 1 (optional)
+    :type mineventdepth: :py:class:`float`
+    :param minepicentraldistance: The parameter "minepicentraldistance" represents the minimum epicentral distance in kilometers. It is used in the calculation of the distance between the event and the country, defaults to 1 (optional)
+    :type minepicentraldistance: :py:class:`float`
+    :param groundmotionmodel: The groundmotionmodel parameter is a function that calculates the intensity of ground motion given the distance and magnitude of an earthquake. In this code, it is set to gmm.gm, which is a reference to a default ground motion model function by Allen et al. (2012)
+    :type groundmotionmodel: :class:`eewsimpy.gmm.gm`
+    :param quickndirty: The parameter "quickndirty" is a boolean flag that determines whether a quick and dirty calculation should be used for the distance calculation if the event is outside the specified country. If set to True, the shapely distance between the event and the country will be used, which can be very incorrect, defaults to False (optional)
+    :type quickndirty: :py:class:`bool`
+
+    :return: the minimum magnitude of an earthquake that would produce a ground motion intensity greater than or equal to the specified minimum intensity, given the parameters and inputs provided.
+    :rtype: :py:class:`float`
+    """
+
+    polygon = Polygon(polygon)
+    polygon.depth = mineventdepth
+    
+    url = shpreader.natural_earth(resolution='110m',
+                                        category='cultural',
+                                        name='admin_0_countries')
+    reader = shpreader.Reader(url)
+    countries = reader.records()
+    country = [country for country in countries        if countryname.lower() in country.attributes['NAME'].lower() ]
+    if not len(country):
+        print('ERROR: Could not find %s in [%s]'%(countryname,','.join([country.attributes['NAME'] for country in countries])))
+    else:
+        if len(country)>1:
+            print('WARNING: Considering the first of [%s] as matching [%s]'%(','.join([c.attributes['NAME'] for c in country]),countryname))
+        country=country[0]
+        
+        if country.geometry.intersects(polygon):
+            print('INFO: Event intersects %s using depth %.1f km and  minimal epicentral distance of %.1f km as distance'%(countryname, mineventdepth, minepicentraldistance))
+            distance = ( mineventdepth**2 + minepicentraldistance**2 )**.5
+        else:
+            if quickndirty:
+                print('WARNING: Event outside %s using shapely distance as country distance (can be VERY incorrect)'%(countryname))
+                distance = ((country.geometry.distance(polygon)*111.2)**2 + mineventdepth**2)**.5 
+            else:
+                impact_trajectory = nearest_points(polygon,country.geometry)
+                impact_trajectory = [c for p in impact_trajectory for c in p.coords[:][0][::-1]]
+                distance = ((gps2dist_azimuth(*impact_trajectory)[0]/1000)**2 + mineventdepth**2)**.5
+    intensity = 99
+    for minmag in numpy.arange(10,-10,-0.01):
+        if intensity <= minintensity:
+            return minmag
+        intensity = groundmotionmodel.get_intensity(distance,minmag, **kwargs)
+    return None

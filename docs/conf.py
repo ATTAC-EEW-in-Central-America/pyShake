@@ -48,4 +48,5 @@ html_static_path = ['_static']
 
 intersphinx_mapping = {'obspy': ('https://docs.obspy.org/', None),
                        'python': ('https://docs.python.org/3/', None),
+                       'pandas': ('https://pandas.pydata.org/docs/',None),
                        }
