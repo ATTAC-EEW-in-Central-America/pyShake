@@ -12,7 +12,7 @@ eewsimpy.event module
    :undoc-members:
    :show-inheritance:
 
-eewsimpy.gmm module
+eewsimpy.gm module
 -------------------
 
 .. automodule:: eewsimpy.gm
