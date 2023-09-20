@@ -13,7 +13,7 @@ except Exception as e:
     print('cartopy skipped')
     print(e)
 
-from eewsimpy import gmm
+from eewsimpy import gm
 
 def inv2coord(inventory,
               declust=0.01,
@@ -205,7 +205,7 @@ def polygonthreshold(polygon,
                      minintensity=4,
                      mineventdepth=1,
                      minepicentraldistance=1,
-                     groundmotionmodel=gmm.gm,
+                     groundmotionmodel=gm.gmm,
                      quickndirty=False,
                      **kwargs):
     """The function `polygonthreshold` calculates the minimum magnitude of an earthquake required to reach a given shaking intensity level anywhere inside a given country.
@@ -249,7 +249,7 @@ def polygonthreshold(polygon,
     :param minepicentraldistance: The parameter "minepicentraldistance" represents the minimum epicentral distance in kilometers. It is used in the calculation of the distance between the event and the country, defaults to 1 (optional)
     :type minepicentraldistance: :py:class:`float`
     :param groundmotionmodel: The groundmotionmodel parameter is a function that calculates the intensity of ground motion given the distance and magnitude of an earthquake. In this code, it is set to gmm.gm, which is a reference to a default ground motion model function by Allen et al. (2012)
-    :type groundmotionmodel: :class:`eewsimpy.gmm.gm`
+    :type groundmotionmodel: :class:`eewsimpy.gm.gmm`
     :param quickndirty: The parameter "quickndirty" is a boolean flag that determines whether a quick and dirty calculation should be used for the distance calculation if the event is outside the specified country. If set to True, the shapely distance between the event and the country will be used, which can be very incorrect, defaults to False (optional)
     :type quickndirty: :py:class:`bool`
 

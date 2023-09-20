@@ -1,7 +1,7 @@
 from numpy import log,sqrt,exp
 
         
-class gm(object):
+class gmm(object):
     
     def __init__(self):
         self.gmm_type = 'Intensity prediction equation'
@@ -23,5 +23,5 @@ class gm(object):
 
         return a + b*m + c*log(sqrt(r**2 + rm**2))+d*log(r/50)+s
 
-class ipe_allen2012_hyp(gm):
+class ipe_allen2012_hyp(gmm):
     pass

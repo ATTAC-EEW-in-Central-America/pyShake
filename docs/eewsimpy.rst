@@ -15,7 +15,7 @@ eewsimpy.event module
 eewsimpy.gmm module
 -------------------
 
-.. automodule:: eewsimpy.gmm
+.. automodule:: eewsimpy.gm
    :members:
    :undoc-members:
    :show-inheritance:
