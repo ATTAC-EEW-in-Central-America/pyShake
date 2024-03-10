@@ -126,7 +126,7 @@ def leadtimegrid(inventory,
     Calculates the EEW delays for a grid of event locations based on station coordinates and other parameters.
 
     :param inventory: The instrument metadata inventory, which contains information about the seismic stations in the network
-    :type inventory: :py:class:`obspy.core.inventory.inventory`
+    :type inventory: :external:py:class:`obspy.core.inventory.inventory.Inventory`
 
     :param declust: The declust parameter is the clustering distance in degrees. It determines the maximum distance between two stations for them to be considered part of the same cluster. Stations within the clustering distance will be grouped together and only one station from each cluster will be used in the calculations
     
