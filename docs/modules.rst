@@ -1,7 +1,7 @@
-eewsimpy
-========
+pyshake
+=======
 
 .. toctree::
    :maxdepth: 4
 
-   eewsimpy
+   pyshake

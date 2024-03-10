@@ -4,18 +4,18 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name='EEWsimpy',
-    version='0.0.2',
+    name='pyShake',
+    version='0.0.3',
     author='Fred Massin',
     author_email='fmassin@ethz.ch',
     description='Testing installation of Package',
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url='https://github.com/ATTAC-EEW-in-Central-America/EEWsimpy',
+    url='https://github.com/ATTAC-EEW-in-Central-America/pyShake',
     project_urls = {
-        "Bug Tracker": "https://github.com/ATTAC-EEW-in-Central-America/EEWsimpy/issues"
+        "Bug Tracker": "https://github.com/ATTAC-EEW-in-Central-America/pyShake/issues"
     },
     license='AGPL-3.0',
-    packages=['eewsimpy'],
+    packages=['pyShake'],
     install_requires=['obspy','shapely','cartopy']
 )

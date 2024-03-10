@@ -13,7 +13,7 @@ We maintain the EEW Simulation Package for Python as an open-source project for 
    
     .. code:: sh
 
-        python -m pip uninstall eewsimpy 
+        python -m pip uninstall pyshake 
         python -m pip install ./  
 
 2. Make sure all dependencies are listed in `requirements.txt`.
@@ -22,7 +22,7 @@ We maintain the EEW Simulation Package for Python as an open-source project for 
    
     .. code:: sh
 
-        sphinx-apidoc -f -o docs eewsimpy 
+        sphinx-apidoc -f -o docs pyshake 
         cd docs 
         make clean html
 
@@ -38,19 +38,19 @@ Please also be patient with the maintenance team, and remember that your help is
 How to PR from fork branch
 --------------------------
 
-1. Create a fork of the main project online at https://github.com/ATTAC-EEW-in-Central-America/EEWsimpy
+1. Create a fork of the main project online at https://github.com/ATTAC-EEW-in-Central-America/pyShake
 2. Clone the main project, and go in the clone:
 
     .. code:: sh
 
-        git clone https://github.com/ATTAC-EEW-in-Central-America/EEWsimpy
-        cd EEWsimpy
+        git clone https://github.com/ATTAC-EEW-in-Central-America/pyShake
+        cd pyShake
 
 3. Setup pushing to your fork (e.g., with mine, have your own instead):
 
     .. code:: sh
     
-        git remote set-url --add --push origin https://github.com/<YOUR USER NAME>/EEWsimpy
+        git remote set-url --add --push origin https://github.com/<YOUR USER NAME>/pyShake
 
 4. Push your contribution to a branch of your fork:
 
@@ -69,7 +69,7 @@ How to PR from fork branch
                          
             ...
             remote: Create a pull request for '<CONTRIB NAME>' on GitHub by visiting:
-            remote:      https://github.com/ATTAC-EEW-in-Central-America/eewsimpy
+            remote:      https://github.com/ATTAC-EEW-in-Central-America/pyshake
 
 Bonus
 -----

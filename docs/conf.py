@@ -16,10 +16,10 @@ sys.path.insert(0, os.path.abspath('..'))
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = 'EEWsimpy'
+project = 'pyShake'
 copyright = '2023, Fred Massin'
 author = 'Fred Massin'
-release = '0.0.2'
+release = '0.0.3'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -50,3 +50,9 @@ intersphinx_mapping = {'obspy': ('https://docs.obspy.org/', None),
                        'python': ('https://docs.python.org/3/', None),
                        'pandas': ('https://pandas.pydata.org/docs/',None),
                        }
+
+html_static_path = ["_static"]
+html_theme_options = {
+    "light_logo": "logo-light-mode.png",
+    "dark_logo": "logo-dark-mode.png",
+}

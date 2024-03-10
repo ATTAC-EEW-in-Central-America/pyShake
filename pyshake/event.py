@@ -1,4 +1,4 @@
-from eewsimpy.util import inv2coord, haversine, tttinterp
+from pyshake.util import inv2coord, haversine, tttinterp
 from numpy import pi,argsort,nan,mgrid,zeros,nanmin,nanmax
 from obspy.taup import TauPyModel
 from obspy.geodetics.base import gps2dist_azimuth
@@ -22,7 +22,7 @@ def leadtimes(inventory,
         from obspy.clients.fdsn.client import Client
         inv = Client('ETH').get_stations(level='channel')
         cat = Client('ETH').get_events(limit=1,orderby='magnitude',maxdepth=10000)
-        from eewsimpy.event import leadtime
+        from pyshake.event import leadtime
         leadtimes(inv, cat, target=[8.54690,47.37850])
 
     :param inventory: The instrument metadata inventory.
@@ -102,6 +102,7 @@ def leadtimes(inventory,
 
 
 
+
 def leadtimegrid(inventory,
                  declust=0.01, #degrees
                  min_station_number=4,#minimum number of required station
@@ -121,14 +122,40 @@ def leadtimegrid(inventory,
                  Vp=5.5,
                  ttt = tttinterp(),
                  ):
-    
-    """...
-
-    :param inventory: The instrument metadata inventory.
-    :type inventory: :py:class:`obspy.core.inventory.inventory`
-    :returns: Longitudes, latitudes, and EEW delays
-    :rtype: :py:class:`tuple`
     """
+    Calculates the EEW delays for a grid of event locations based on station coordinates and other parameters.
+
+    :param inventory: The instrument metadata inventory, which contains information about the seismic stations in the network
+    :type inventory: :py:class:`obspy.core.inventory.inventory`
+
+    :param declust: The declust parameter is the clustering distance in degrees. It determines the maximum distance between two stations for them to be considered part of the same cluster. Stations within the clustering distance will be grouped together and only one station from each cluster will be used in the calculations
+    
+    :param min_station_number: The `min_station_number` parameter is the minimum number of required stations for the calculation. It specifies the minimum number of stations that need to detect an earthquake in order for the calculation to be performed. If the number of stations that detect the earthquake is less than `min_station_number`, the calculation will, defaults to 4 (optional)
+    
+    :param target: The target parameter is the coordinates of the target location where you want to calculate the EEW delays. In this case, the target location is set to Guatemala City with latitude -90.535278 and longitude 14.613333
+    
+    :param depth: The depth parameter represents the depth of the earthquake events in kilometers, defaults to 5 (optional)
+    
+    :param dlat: The parameter `dlat` represents the latitude increment used to create a grid of latitude values. It determines the spacing between adjacent latitude values in the grid 
+    
+    :param dlon: The parameter `dlon` represents the longitude increment used to create a grid of longitude values. It determines the spacing between adjacent longitude values in the grid
+    
+    :param dmax: The parameter `dmax` represents the maximum distance in degrees from the network that will be considered for calculating the EEW delays, defaults to 3 (optional) 
+    
+    :param flat_latency: The `flat_latency` parameter is a dictionary that specifies the flat latency values for different station names or patterns. The keys in the dictionary are station names or patterns, and the values are the corresponding flat latency values. The flat latency is the delay in seconds that is added to the EEW delay for 
+    
+    :param resampling: The `resampling` parameter determines the resampling factor for the EEW delays. It controls the spacing between the grid points in the output EEW delays. A value of 1 means no resampling, while a value greater than 1 will result in a coarser grid with larger spacing between, defaults to 1 (optional)
+    
+    :param kmtodeg: The parameter "kmtodeg" is a conversion factor used to convert distances in kilometers to degrees. It is calculated as 2 times the product of the Earth's radius (6371 km) and pi divided by 360. This conversion factor is used in the calculations of distances between stations and source grid nodes
+    
+    :param Vp: Vp is the P-wave velocity, which is the speed at which P-waves travel through the Earth's crust. It is used to calculate the travel time of seismic waves from the event location to the target location
+    
+    :param ttt: The parameter `ttt` is an object of the `tttinterp` class, which is used for interpolating travel times. 
+    :rtype: :py:class:`function`
+    
+    :return: three values: longitudes, latitudes, and EEW delays.
+    :rtype: :py:class:`tuple`
+    """   
     
     # Stations coordinates, one station per clusters
     statlats,statlons,statoff = inv2coord(inventory,

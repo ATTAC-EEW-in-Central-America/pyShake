@@ -1,1 +1,1 @@
-# EEW Simulation Package for Python (EEWsimpy)
+# EEW Simulation Package for Python (pyShake)

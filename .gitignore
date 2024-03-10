@@ -1,7 +1,7 @@
 docs/_build
 *.pyc
 build
-EEWsimpy.egg-info
+pyShake.egg-info
 docs/Makefile
 docs/make.bat
 README.ipynb
