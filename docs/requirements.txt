@@ -2,3 +2,7 @@ furo
 obspy
 sphinx_copybutton
 nbsphinx
+shapely
+cartopy
+geopip
+pandas
