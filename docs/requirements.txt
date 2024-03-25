@@ -2,8 +2,12 @@ furo
 obspy
 sphinx_copybutton
 nbsphinx
-shapely
-cartopy
+Shapely
+Cartopy
 geopip
 pandas
 geopandas
+matplotlib
+numpy
+requests
+scipy

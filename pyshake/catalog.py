@@ -54,7 +54,7 @@ def get_eventindex(url,method='pandas',**opt):
         return Client("IRIS").get_events(format='text',**opt)
     
     
-def eew_report2dict(files='.seiscomp/EEW_reports/*2018*txt'):
+def eew_report2dict(files='.seiscomp/EEW_reports/*txt'):
     """
     Reads earthquake early warning (EEW) report files from a specified 
     file-path pattern, and returns a dictionary of the extracted information. 
@@ -69,10 +69,9 @@ def eew_report2dict(files='.seiscomp/EEW_reports/*2018*txt'):
         Mag.|Lat.  |Lon.   |tdiff |Depth |creation time (UTC)      |origin time (UTC)        |likeh.|#st.(org.) |#st.(mag.)
         ------------------------------------------------------------------------------------------------------------------
         5.15| 10.31| -86.27| 47.14| 10.00|2017-03-17T10:32:56.1282Z|2017-03-17T10:32:08.9848Z|  0.30|         19|         7
-    
-    
+        
     :param files: A string that represents the file path pattern for the EEW report 
-        files to be processed, defaults to .seiscomp/EEW_reports/*2018*txt.
+        files to be processed.
     :type files: :py:class:`str`
     
     :return: A dictionary where the keys are event identifiers (from file paths of EEW report 
