@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+"""
+Misc utility module. 
+"""
+
 from obspy.geodetics.base import gps2dist_azimuth
 import numpy
 from fnmatch import fnmatch
@@ -103,6 +108,92 @@ def tttinterp(model='iasp91',
         #time = ttt[phases](dist)
     return ttt
 
+                
+from geopip import search
+def isincountries(la, lo, countrycodes,
+                  dthresh=1.4):
+    """
+    The function `isincountries` checks if a given latitude and longitude pair 
+    is within a specified distance threshold of any country in a list of ISO2
+    country codes. The function uses the `geopip` library to determine the country 
+    code for the given coordinates
+    
+    :param la: Input latitude.
+    :type la: :py:class:`float`
+    :param lo:  Input longitude.
+    :type lo: :py:class:`float`
+    :param countrycodes: A comma separated list of ISO2 country codes.
+    :type countrycodes: :py:class:`str`
+    :param dthresh: The distance threshold within which the function will search 
+        for countries.
+    :type dthresh: :py:class:`float`
+    
+    :return: The function will return `True` if the coordinates are within any of the 
+        specified countries, and `False` otherwise.
+    :rtype: :py:class:`bool`
+    """
+
+    if countrycodes is None:
+        return True
+    inside=False
+    lalo=[la,lo]
+    for lad in [la+dthresh,la-dthresh,la]:
+        for lod in [lo+dthresh,lo-dthresh,lo]:
+            gcode=search(lng=lod, lat=lad)
+            if gcode is None or gcode['ISO2'] is None:
+                continue
+            if gcode['ISO2'].lower() in countrycodes:
+                return True
+    if gcode is None or gcode['ISO2'] is None:#gcode.country_code is None:
+        return
+    
+
+def eventdistance(la, lo, de, 
+                  refla, reflo, refde,
+                  v=1,
+                  meters=800):
+    """
+    The function `eventdistance` calculates the distance between two geographical 
+    coordinates, taking into account the depth of the locations if provided.
+    
+    :param la: Latitude of the first location.
+    :param la: :py:class:`float`
+    :param lo: Longitude of the first location.
+    :param lo: :py:class:`float`
+    :param de: Depth of the first location (set to None if unknown).
+    :param de: :py:class:`float`
+    :param refla: Latitude of the second location.
+    :param refla: :py:class:`float`
+    :param reflo: Longitude of the second location.
+    :param reflo: :py:class:`float`
+    :param refde: Depth of the second location (set to None if unknown).
+    :param refde: :py:class:`float`
+    :param v: Divider of the horizontal distance output in case depth is unknown.
+    :param v: :py:class:`float`
+    :param meters: If the absolute value of the depth (`de` or `refde`) is 
+        greater than this threshold, the function assumes that the depth is 
+        in kilometers instead of meters. 
+    :param meters: :py:class:`float`
+    
+    :return: The distance in kilometers between the two geographical coordinates.
+    :rtype: :py:class:`float`
+    """
+    laloref=[la,lo]
+    lalo = [refla, reflo]
+    #d = 111.2*locations2degrees(lalo[0],lalo[1],laloref[0],laloref[1])
+    d = gps2dist_azimuth(lalo[0],lalo[1],laloref[0],laloref[1])[0]/1000
+
+    if refde is None or de is None:
+        return d/v
+
+    if abs(de)>meters:
+        print('Assuming depth %s in m'%de)
+        de = de/1000
+    if abs(refde)>meters:
+        print('Assuming depth %s in m'%refde)
+        refde = refde/1000
+
+    return  ((d**2 + (de-refde)**2)**.5)/v
 
 
 def eventcountrydistance(countryname, 
@@ -208,7 +299,9 @@ def polygonthreshold(polygon,
                      groundmotionmodel=gm.gmm,
                      quickndirty=False,
                      **kwargs):
-    """The function `polygonthreshold` calculates the minimum magnitude of an earthquake required to reach a given shaking intensity level anywhere inside a given country.
+    """
+    The function `polygonthreshold` calculates the minimum magnitude of an earthquake 
+    required to reach a given shaking intensity level anywhere inside a given country.
 
     .. code:: python
 
@@ -238,22 +331,40 @@ def polygonthreshold(polygon,
                         s = 1) 
         # 3.99
 
-    :param polygon: The polygon parameter is a set of coordinates that define the shape of the polygon. It is used to determine if the event intersects with the specified country
+    :param polygon: The polygon parameter is a set of coordinates that define the shape 
+        of the polygon. It is used to determine if the event intersects with the specified 
+        country
     :type polygon: :py:class:`list` of :py:class:`list` e.g., [[lo1,la1],[lo2,la2]].
-    :param countryname: The name of the country where the intensity is evaluated. The default value is 'Switzerland', defaults to Switzerland (optional)
+    :param countryname: The name of the country where the intensity is evaluated. The 
+        default value is 'Switzerland', defaults to Switzerland (optional)
     :type countryname: :py:class:`str` 
-    :param minintensity: The minimum intensity threshold for the polygon. Any earthquake with an intensity below this threshold will not be considered, defaults to 4 (optional)
+    :param minintensity: The minimum intensity threshold for the polygon. Any earthquake 
+        with an intensity below this threshold will not be considered, defaults to 4 
+        (optional)
     :type minintensity: :py:class:`float`    
-    :param mineventdepth: The mineventdepth parameter represents the depth of the event in kilometers. It is used to calculate the distance between the event and the polygon, defaults to 1 (optional)
+    :param mineventdepth: The mineventdepth parameter represents the depth of the event 
+        in kilometers. It is used to calculate the distance between the event and the 
+        polygon, defaults to 1 (optional)
     :type mineventdepth: :py:class:`float`
-    :param minepicentraldistance: The parameter "minepicentraldistance" represents the minimum epicentral distance in kilometers. It is used in the calculation of the distance between the event and the country, defaults to 1 (optional)
+    :param minepicentraldistance: The parameter "minepicentraldistance" represents the 
+        minimum epicentral distance in kilometers. It is used in the calculation of the 
+        distance between the event and the country, defaults to 1 (optional)
     :type minepicentraldistance: :py:class:`float`
-    :param groundmotionmodel: The groundmotionmodel parameter is a function that calculates the intensity of ground motion given the distance and magnitude of an earthquake. In this code, it is set to gmm.gm, which is a reference to a default ground motion model function by Allen et al. (2012)
+    :param groundmotionmodel: The groundmotionmodel parameter is a function that 
+        calculates the intensity of ground motion given the distance and magnitude of an 
+        earthquake. In this code, it is set to gmm.gm, which is a reference to a default 
+        ground motion model function by Allen et al. (2012)
     :type groundmotionmodel: :class:`pyshake.gm.gmm`
-    :param quickndirty: The parameter "quickndirty" is a boolean flag that determines whether a quick and dirty calculation should be used for the distance calculation if the event is outside the specified country. If set to True, the shapely distance between the event and the country will be used, which can be very incorrect, defaults to False (optional)
+    :param quickndirty: The parameter "quickndirty" is a boolean flag that determines 
+        whether a quick and dirty calculation should be used for the distance calculation 
+        if the event is outside the specified country. If set to True, the shapely 
+        distance between the event and the country will be used, which can be very 
+        incorrect, defaults to False (optional)
     :type quickndirty: :py:class:`bool`
 
-    :return: the minimum magnitude of an earthquake that would produce a ground motion intensity greater than or equal to the specified minimum intensity, given the parameters and inputs provided.
+    :return: the minimum magnitude of an earthquake that would produce a ground motion 
+        intensity greater than or equal to the specified minimum intensity, given the 
+        parameters and inputs provided.
     :rtype: :py:class:`float`
     """
 

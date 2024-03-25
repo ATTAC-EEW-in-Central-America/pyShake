@@ -28,6 +28,14 @@ pyshake.gm module
    :undoc-members:
    :show-inheritance:
 
+pyshake.plotting module
+-----------------------
+
+.. automodule:: pyshake.plotting
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 pyshake.util module
 -------------------
 

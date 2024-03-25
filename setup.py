@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name='pyShake',
-    version='0.0.3',
+    version='1.0.0',
     author='Fred Massin',
     author_email='fmassin@ethz.ch',
     description='Testing installation of Package',

@@ -12,6 +12,7 @@ Welcome to pyShake's documentation!
 
    install
    support
+   tutorials
    modules
    contribute
 

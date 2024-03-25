@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.abspath('..'))
 project = 'pyShake'
 copyright = '2023, Fred Massin'
 author = 'Fred Massin'
-release = '0.0.3'
+release = '1.0.0'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -32,7 +32,8 @@ extensions = [
     'sphinx.ext.viewcode',
     'sphinx.ext.napoleon',
     'sphinx.ext.intersphinx',
-    'sphinx_copybutton'
+    'sphinx_copybutton',
+    'nbsphinx'
 ]
 
 templates_path = ['_templates']
@@ -49,6 +50,7 @@ html_static_path = ['_static']
 intersphinx_mapping = {'obspy': ('https://docs.obspy.org/', None),
                        'python': ('https://docs.python.org/3/', None),
                        'pandas': ('https://pandas.pydata.org/docs/',None),
+                       "matplotlib": ("https://matplotlib.org/", None),
                        }
 
 html_static_path = ["_static"]

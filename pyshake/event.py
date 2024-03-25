@@ -1,5 +1,10 @@
+# -*- coding: utf-8 -*-
+"""
+Event module. 
+"""
+
 from pyshake.util import inv2coord, haversine, tttinterp
-from numpy import pi,argsort,nan,mgrid,zeros,nanmin,nanmax
+from numpy import pi,argsort,nan,mgrid,zeros,nanmin,nanmax,sort
 from obspy.taup import TauPyModel
 from obspy.geodetics.base import gps2dist_azimuth
 

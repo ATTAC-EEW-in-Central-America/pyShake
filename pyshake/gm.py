@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+Ground motion model module. 
+"""
 from numpy import log,sqrt,exp
 
         
