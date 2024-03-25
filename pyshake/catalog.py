@@ -28,8 +28,8 @@ def get_eventindex(url,method='pandas',**opt):
     :param url: The fdsnws base url (e.g. 'http://eida.ethz.ch').
     :type string: :py:class:`string`.
     :param method: 'pandas' or 'obspy' defines whether the event list 
-        should returned as a :external:py:mod:`pandas.Dataframe` or a
-        :external:py:mod:`obspy.Catalog`.
+        should returned as a :external:py:mod:`pandas.DataFrame` or a
+        :external:py:mod:`obspy.core.event.Catalog`.
     :type string: :py:class:`string`.
 
     .. Note::
@@ -39,7 +39,7 @@ def get_eventindex(url,method='pandas',**opt):
         web-service does not support will raise an error.
 
     :return: The list of events.
-    :rtype: :external:py:mod:`pandas.Dataframe` or :external:py:mod:`obspy.Catalog`
+    :rtype: :external:py:mod:`pandas.DataFrame` or :external:py:mod:`obspy.core.event.Catalog`
     """
     if method == 'pandas':
 
@@ -672,7 +672,7 @@ def table(reports=None,references=None,TFpn=None,**options):
 
     :return: The table of false events that can be viewed with :py:func:`print` 
         or :py:func:`display`.
-    :rtype: :external:py:class:`pandas.Dataframe`
+    :rtype: :external:py:class:`pandas.DataFrame`
     """
     
     if TFpn is None:
