@@ -1,3 +1,8 @@
+# 1.0.1
+- Requirements and doc fixed
+- Accuracy tutorial improved with more explanations
+- Map function improved to take in account delay
+  
 # 1.0.0
 - Add accuracy tutorial
 - Add simple accuracy tools in catalog module

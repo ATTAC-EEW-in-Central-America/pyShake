@@ -10,7 +10,9 @@ import cartopy.io.img_tiles as cimgt
 import cartopy.io.shapereader as shpreader
 import geopandas,requests,glob,os
 import matplotlib.transforms as mtransforms
+from matplotlib import colors
 from numpy import argsort
+from numpy import sqrt
 
 
 #def argsort(seq):
@@ -186,6 +188,7 @@ def bmap(bounds=[-89, -83, 8, 14],
          fig=None,
          ax=None,
          legendfaults=True,
+         bg=True,
          label_style={'size':'small',
                       'path_effects':[matplotlib.patheffects.withStroke(linewidth=2,foreground="w")]}):
     padlo=(bounds[1]-bounds[0])/10
@@ -229,18 +232,19 @@ def bmap(bounds=[-89, -83, 8, 14],
     ax.add_feature(cfeature.COASTLINE, linewidth=1,color='.5') 
     ax.add_feature(cfeature.RIVERS, linewidth=.5)
     
-    ax.add_image(cimgt.GoogleTiles(url='https://server.arcgisonline.com/arcgis/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}.jpg'), 8)
+    if bg: 
+        ax.add_image(cimgt.GoogleTiles(url='https://server.arcgisonline.com/arcgis/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}.jpg'), 8)
 
-    ax.add_wms(wms='https://www.gebco.net/data_and_products/gebco_web_services/web_map_service/mapserv',
-               layers=['GEBCO_LATEST'],
-               alpha=1/3,
-               zorder=1
-               )
-    if False:
-        # Create a Stamen Terrain instance.
-        stamen_terrain = cimgt.Stamen('terrain-background')
-        # Add the Stamen data at zoom level 8.
-        ax.add_image(stamen_terrain, 7,alpha=1/2)   
+        ax.add_wms(wms='https://www.gebco.net/data_and_products/gebco_web_services/web_map_service/mapserv',
+                layers=['GEBCO_LATEST'],
+                alpha=1/3,
+                zorder=1
+                )
+        if False:
+            # Create a Stamen Terrain instance.
+            stamen_terrain = cimgt.Stamen('terrain-background')
+            # Add the Stamen data at zoom level 8.
+            ax.add_image(stamen_terrain, 7,alpha=1/2)   
     
     
     mapcities(ax,transform=ccrs.Geodetic())
@@ -248,18 +252,45 @@ def bmap(bounds=[-89, -83, 8, 14],
     mapcountrynames(ax,transform=ccrs.Geodetic())
     return ax
 
-def plot(Hyp,mtypes,ax,label='T$^{+}_{%s}$',times=None,labelmarkersize=64,**opt):
-    scatters=[]
+def _forward(x):
+    return sqrt(x)
+def _inverse(x):
+    return x**2
+
+def plot(Hyp,
+         mtypes,
+         ax,
+         label='T$^{+}_{%s}$',
+         times=None,
+         labelmarkersize=64,
+         facecolors={'Mfd':'C1','MVS':'C2','None':'C0'},
+         cmaps={'Mfd':'autumn','MVS':'winter'},
+         **opt):
+    
+    norm = colors.FuncNorm((_forward, _inverse), 
+                           vmin=0, 
+                           vmax=40)
+
+    scattermsizes=[]
+    scattercmaps=[]
+
     if times is None:
         times=[xyz[4] for mtype in Hyp for xyz in Hyp[mtype]]    
-    lima = [min(times),max(times)-min(times)]
 
+    lima = [min(times),max(times)-min(times)]
+    
     for mtype in Hyp:
         s=mtypes.index(mtype)
-        x=[xyz[0]                         for xyz in Hyp[mtype]]
-        y=[xyz[1]                         for xyz in Hyp[mtype]]
-        m=[mag2size(xyz[3])               for xyz in Hyp[mtype]]        
+        x=[xyz[0]                            for xyz in Hyp[mtype]]
+        y=[xyz[1]                            for xyz in Hyp[mtype]]
+        m=[mag2size(xyz[3])                  for xyz in Hyp[mtype]]        
         a=[((xyz[4]-lima[0])/lima[1]+.5)*2/3 for xyz in Hyp[mtype]]
+        dt=[xyz[5]                           for xyz in Hyp[mtype]]
+
+        if len(Hyp[mtype]) and len(Hyp[mtype][0])>6:
+            xx=[[xyz[0],xyz[6]]              for xyz in Hyp[mtype]]
+            yy=[[xyz[1],xyz[7]]              for xyz in Hyp[mtype]]
+            dt=[xyz[-1]                      for xyz in Hyp[mtype]]
 
         o=argsort(m)
         
@@ -268,40 +299,95 @@ def plot(Hyp,mtypes,ax,label='T$^{+}_{%s}$',times=None,labelmarkersize=64,**opt)
             mt=''
         addlab=' (%d ev.)'%len(m)
 
-        ax.scatter([None ], [None], [labelmarkersize], edgecolor='k', linewidths=.5,facecolor='C%d'%(len(mtypes)-1-s), label=label%mt+addlab, **opt)
-        scatters+=[ax.scatter([None for i in o ], [None for i in o ], [m[i] for i in o], edgecolor='k', facecolor='0.5',linewidths=.5,  **opt)]
-        if False:
-            scatters+=[ax.scatter([x[i] for i in o ], [y[i] for i in o ], [m[i] for i in o], 
-                              color='C%d'%(len(mtypes)-1-s), 
-                              linewidths=0.01, 
-                              label=label%mt+addlab, 
+        ax.scatter([None], 
+                   [None], 
+                   [labelmarkersize], 
+                   edgecolor='k', 
+                   linewidths=.5,
+                   facecolor='C%d'%(len(mtypes)-1-s), 
+                   label=label%mt+addlab, 
+                   **opt)
+        
+        scattermsizes += [ax.scatter([None for i in o ], 
+                              [None for i in o ], 
+                              [m[i] for i in o], 
+                              edgecolor='k', 
+                              facecolor='0.5',
+                              linewidths=.5,  
                               **opt)]
-        if len(Hyp[mtype]) and len(Hyp[mtype][0])>6:
-            xx=[[xyz[0],xyz[6]]                         for xyz in Hyp[mtype]]
-            yy=[[xyz[1],xyz[7]]                         for xyz in Hyp[mtype]]
+        if mtype in cmaps and mtype not in [im[1] for im in scattercmaps]:
+            scattercmaps += [(ax.scatter([None], 
+                                        [None], 
+                                        [1],
+                                        c=[1],
+                                        cmap=cmaps[mtype],
+                                        norm=norm),
+                             "%s delay (s)"%mtype)]
+        if False:
+            scatters+=[ax.scatter([x[i] for i in o ], 
+                                  [y[i] for i in o ], 
+                                  [m[i] for i in o], 
+                                  color='C%d'%(len(mtypes)-1-s), 
+                                  linewidths=0.01, 
+                                  label=label%mt+addlab, 
+                                  **opt)]
+            
 
         for j,i in enumerate(o):
-            ax.scatter([x[i]], [y[i]], [m[i]], edgecolor='w', linewidths=4, alpha=a[i], **opt)
-            ax.scatter([x[i]], [y[i]], [m[i]], edgecolor='k', linewidths=2, alpha=a[i], **opt)
-            ax.scatter([x[i]], [y[i]], [m[i]], 
-                              color='C%d'%(len(mtypes)-1-s), 
-                              linewidths=0.01, 
-                               alpha=a[i],
-                              **opt)
+            
+            ax.scatter([x[i]], 
+                       [y[i]], 
+                       [m[i]], 
+                       edgecolor='w', 
+                       linewidths=4, 
+                       alpha=a[i], 
+                       **opt)
+            
+            ax.scatter([x[i]], 
+                       [y[i]], 
+                       [m[i]], 
+                       edgecolor='k', 
+                       linewidths=2, 
+                       alpha=a[i], 
+                       **opt)
+            
+            if mtype in cmaps:
+                ax.scatter([x[i]], 
+                        [y[i]], 
+                        [m[i]],
+                        c=[dt[i]],#color='C%d'%(len(mtypes)-1-s), 
+                        cmap=cmaps[mtype],
+                        norm=norm,
+                        linewidths=0.01, 
+                        alpha=a[i],
+                        **opt)
+            else:
+                ax.scatter([x[i]], 
+                        [y[i]], 
+                        [m[i]],
+                        color=facecolors[mtype],#'C%d'%(len(mtypes)-1-s), 
+                        linewidths=0.01, 
+                        alpha=a[i],
+                        **opt)
+
             if len(Hyp[mtype]) and len(Hyp[mtype][0])>6:
-                ax.plot(xx[i], yy[i],  
-                 alpha=a[i],
+
+                ax.plot(xx[i], 
+                        yy[i],
+                        alpha=a[i],
                         linewidth=2, 
                         color='w', 
                         solid_capstyle='round',
                         markersize=0, 
                         **opt)
-                ax.plot(xx[i], yy[i],
-                 alpha=a[i], 
+                
+                ax.plot(xx[i], 
+                        yy[i],
+                        alpha=a[i], 
                         linewidth=1, 
-                        color='C%d'%(len(mtypes)-1-s), 
+                        color=facecolors[mtype],#'C%d'%(len(mtypes)-1-s), #cmaps[mtypes](dt,norm=norm),#
                         solid_capstyle='round',
                         markersize=0,
                         **opt)
 
-    return scatters
+    return scattermsizes, scattercmaps

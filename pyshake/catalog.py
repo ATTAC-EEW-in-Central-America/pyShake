@@ -192,7 +192,10 @@ def getref(reports,
            kind='us',
            dt=60*4,
            dla=1.5,
-           dlo=1.5):
+           dlo=1.5,
+           f=None,
+           names=[],
+           sep=','):
     """
     Retrieves earthquake event data based on the input EEW report time-period and area,
     and returns the corresponding earthquake catalog.
@@ -222,10 +225,6 @@ def getref(reports,
         of the input catalog.
     :rtype: :external:py:class:`pandas.DataFrame`
     """
-
-    #to do :
-    #- eval Mc
-    
     starttime = UTCDateTime()
     endtime = UTCDateTime('1970-01-01')
     minlon = 360
@@ -241,50 +240,63 @@ def getref(reports,
         minlon = min([ minlon, min(report['Lon.'])])
         maxlon = max([ maxlon, max(report['Lon.'])])
         minlat = min([ minlat, min(report['Lat.'])])
-        maxlat= max([ maxlat, max(report['Lat.'])])
-
-    f=io.BytesIO()
-    opt={'starttime':starttime-dt,
-         'endtime':endtime+dt,
-         'minlongitude':minlon-dlo,
-         'maxlongitude':maxlon+dlo,
-         'minlatitude':minlat-dla,
-         'maxlatitude':maxlat+dla,
-         'format':'csv',
-         #'limit':10,
-         'filename':f}
-
-    if kind == 'us': # USGS web service
-        names=['time','latitude','longitude','depth','mag',
-               'magType','nst','gap','dmin','rms','net','id','updated','place','type',
-               'horizontalError','depthError','magError','magNst','status',
-               'locationSource','magSource']
-        sep = ','
-    elif kind == 'sc': # SeisComP web service
-        names=['id','time','latitude','longitude','depth',
-               'locationSource','Catalog','Contributor','ContributorID',
-               'MagType','mag','magSource',
-               'place']
-        opt['format'] = 'text'
-        sep = '|'
+        maxlat = max([ maxlat, max(report['Lat.'])])
     
-    Client(url).get_events(**opt)
+    if f is None:
+        f=io.BytesIO()
+        opt={'starttime':starttime-dt,
+            'endtime':endtime+dt,
+            'minlongitude':minlon-dlo,
+            'maxlongitude':maxlon+dlo,
+            'minlatitude':minlat-dla,
+            'maxlatitude':maxlat+dla,
+            'format':'csv',
+            #'limit':10,
+            'filename':f}
+
+        if kind=='us': # USGS web service
+            names=['time','latitude','longitude','depth','mag',
+                'magType','nst','gap','dmin','rms','net','id','updated','place','type',
+                'horizontalError','depthError','magError','magNst','status',
+                'locationSource','magSource']
+            sep = ','
+        elif kind == 'sc': # SeisComP web service
+            names=['id','time','latitude','longitude','depth',
+                'locationSource','Catalog','Contributor','ContributorID',
+                'MagType','mag','magSource',
+                'place']
+            opt['format']='text'
+            sep = '|'
+        print(opt)
+        Client(url).get_events(**opt)
     
-    f.seek(0)
+        f.seek(0)
+    else:
+        print(f'Using existing {f}')
+
     cat = read_csv(f,header=0,names=names,sep=sep, index_col=False)
     
-    if kind=='sc': # SeisComP web service
-        cat = cat[cat['locationSource'].isnull() == False]
-        cat = cat[cat['mag'].isnull() == False]
-        cat = cat[cat['locationSource'].str.contains('scautoloc') == False]
-        cat = cat[cat['locationSource'].str.contains('screloc') == False]
-        cat = cat[cat['locationSource'].str.contains('scanloc') == False]
-        cat = cat[cat['locationSource'].str.contains('scvsloc') == False]
-        cat = cat[cat['locationSource'].str.contains('scvsnloc') == False]
+    if f is not None:
+        cat.time=[UTCDateTime(e)+30 for e in cat.time.values]
+        cat = cat[cat['time']>=starttime-dt]
+        cat = cat[cat['time']<=endtime+dt]
+        cat = cat[cat['longitude']>=minlon-dlo]
+        cat = cat[cat['longitude']<=maxlon+dlo]
+        cat = cat[cat['latitude']>=minlat-dla]
+        cat = cat[cat['latitude']<=maxlat+dlo]
+    else:
+        if kind=='sc': # SeisComP web service
+            cat = cat[cat['locationSource'].isnull() == False]
+            cat = cat[cat['mag'].isnull() == False]
+            cat = cat[cat['locationSource'].str.contains('scautoloc') == False]
+            cat = cat[cat['locationSource'].str.contains('screloc') == False]
+            cat = cat[cat['locationSource'].str.contains('scanloc') == False]
+            cat = cat[cat['locationSource'].str.contains('scvsloc') == False]
+            cat = cat[cat['locationSource'].str.contains('scvsnloc') == False]
+        cat.time=[UTCDateTime(e) for e in cat.time.values]
 
-    cat.time=[UTCDateTime(e) for e in cat.time.values]
     return cat
-
+    
 
 def matchreports(reports, cat,
                  maxhypocentraldist=150,
@@ -537,7 +549,10 @@ def map(reports,references,
         figsize=(8,8),
         legendsize=True,
         legendfaults=True,
-        **options):
+        subtitle=False,
+        colorbar=True,
+        bg=True,
+        **options):    
     """
     Run :func:`pyshake.catalog.alert_accuracy` (supporting all its related 
     parameters) and generate the map of results, including legends and title
@@ -572,7 +587,7 @@ def map(reports,references,
     :return: The matplotlib axis where the plots have been created
     :rtype: :external:py:class:`matplotlib.axes.Axes`
     """
-    
+
     if 'Mmin' not in options:
         options['Mmin']=None
     if 'Lmin' not in options:
@@ -593,20 +608,54 @@ def map(reports,references,
                                         MMImin=options['MMImin'])
     else:
         Tp, Fp, Fn, bounds = TFpn
+
     n = 0
-    for tmp in [Tp, Fp, Fn]:
+    for tmp in [Tp, Fn]:
         for mtype in tmp:
             n+=len(tmp[mtype])
     
-    ax=bmap(bounds=bounds,fig=fig,ax=ax,figsize=figsize,legendfaults=legendfaults,rightside=rightside)
+    ax=bmap(bounds=bounds,
+            fig=fig,
+            ax=ax,
+            figsize=figsize,
+            legendfaults=legendfaults,
+            bg=bg,
+            rightside=rightside)
 
-    times =  [xyz[4] for mtype in Tp for xyz in Tp[mtype]]+[xyz[4] for mtype in Fp for xyz in Fp[mtype]]+[xyz[4] for mtype in Fn for xyz in Fn[mtype]]
+    times = [xyz[4] for mtype in Tp for xyz in Tp[mtype]]+\
+            [xyz[4] for mtype in Fp for xyz in Fp[mtype]]+\
+            [xyz[4] for mtype in Fn for xyz in Fn[mtype]]
+    
     times = [min(times),max(times)]
 
-    mtypes =  list(set([mtype for mtype in Tp]+[mtype for mtype in Fp]))+['None']
-    scatter = plot(Tp,mtypes,ax,marker='o',times=times,transform=ccrs.Geodetic(),zorder=97)
-    plot(Fp,mtypes,ax,label='F$^{+}_{%s}$',marker='X',times=times,transform=ccrs.Geodetic(),zorder=98)
-    plot(Fn,mtypes,ax,label='F$^{-}_{%s}$',marker='s',times=times,transform=ccrs.Geodetic(),zorder=99)
+    mtypes = list(set([mtype for mtype in Tp]+[mtype for mtype in Fp])) + \
+             ['None']
+    
+    scatter,scattercmaps = plot(Tp,
+                   mtypes,
+                   ax,
+                   marker='o',
+                   times=times,
+                   transform=ccrs.Geodetic(),
+                   zorder=97)
+    
+    plot(Fp,
+         mtypes,
+         ax,
+         label='F$^{+}_{%s}$',
+         marker='X',
+         times=times,
+         transform=ccrs.Geodetic(),
+         zorder=98)
+    
+    plot(Fn,
+         mtypes,
+         ax,
+         label='F$^{-}_{%s}$',
+         marker='s',
+         times=times,
+         transform=ccrs.Geodetic(),
+         zorder=99)
     
     ax.legend()
     h, l = ax.get_legend_handles_labels()
@@ -618,38 +667,73 @@ def map(reports,references,
             fmt="M{x:.2g}",
             func=size2mag)
         h2, l2 = [l[::-1] for l in scatter[0].legend_elements(**kw)]
-        h = h[::-1]+h2
-        l = l[::-1]+l2
+
+        h = h2 + h[::-1]
+        l = l2 + l[::-1]
+
+
+    locbar = 'left'
+    loclegend = 'right'
+    bbox_to_anchor = 0
+    bbox = ax.get_position() 
+    
     if rightside:
-        l=ax.legend(h, l,
-                bbox_to_anchor=(1,0), 
-                loc="lower left")
+        locbar = 'right'
+        loclegend = 'left'
+        bbox_to_anchor = 1
+        cax = ax.figure.add_axes([bbox.x0+bbox.width, 
+                                  bbox.y0+bbox.height-bbox.height/2.5, 
+                                  bbox.width/1.5, 
+                                  bbox.height/2.5])
     else:
-        l=ax.legend(h, l,
-                bbox_to_anchor=(0,0), 
-                loc="lower right")
+        cax = ax.figure.add_axes([bbox.x0-bbox.width/1.5, 
+                                  bbox.y0+bbox.height-bbox.height/2.5, 
+                                  bbox.width/1.5, 
+                                  bbox.height/2.5])
+    cax.axis('off')
+        
+    l=ax.legend(h, l,
+                ncol=1,
+                fontsize='x-small',
+                bbox_to_anchor=(bbox_to_anchor,0), 
+                loc="lower %s"%loclegend)        
 
     t = '%d ev.'%n
 
     if title is not None:
         t = '%s %s'%(title,t)
     
-    if options['Mmin'] is not None and options['Mtypes'] is not None:
-        t += '\n$M_{%s}$'%options['Mtypes'].replace('M','')
-        t += '$>%.1f$'%options['Mmin']
-    
-    if options['MMImin'] is not None:
-        t += '\n$MMI$'
-        if options['MMIcountry'] is not None:
-            t += '$_{%s}$'%options['MMIcountry'].capitalize() 
-        t += '$>%.1g$'%options['MMImin'] 
+    if subtitle:
+        t += '\n$^{%s}_{%s}$'%(times[0].isoformat()[:16], times[1].isoformat()[:16])
+        
+        if options['MMImin'] is not None:
+            t += '\n$MMI$'
+            if options['MMIcountry'] is not None:
+                t += '$_{%s}$'%options['MMIcountry'].capitalize() 
+            t += '$>%.1g$'%options['MMImin'] 
 
-    if options['Lmin'] is not None:
-        t += '\n$Lik.>%.1g$'%options['Lmin']
-    
-    t += '\n$^{%s}_{%s}$'%(times[0].isoformat()[:16], times[1].isoformat()[:16])
+        if options['Mmin'] is not None and options['Mtypes'] is not None:
+            t += '\n$M_{%s}$'%options['Mtypes'].replace('M','')
+            t += '$>%.1f$'%options['Mmin']
+
+        if options['Lmin'] is not None:
+            t += '\n$Lik.>%.1g$'%options['Lmin']
+        
     
     l.set_title(title=t, prop={'weight':'bold'})
+
+    
+    if colorbar:    
+        for im in scattercmaps:
+            cbar = ax.figure.colorbar(im[0], 
+                            ax=cax,
+                            location=locbar,
+                            fraction=.8,
+                            #use_gridspec=True,
+                            #shrink=0.5
+                            )
+            cbar.set_label(im[1], 
+                            rotation=90)
 
     return ax
 
