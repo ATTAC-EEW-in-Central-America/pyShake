@@ -180,6 +180,8 @@ def makefigax(fig=None,ax=None,axprop={},figprop={}):
         else :
             fig = matplotlib.pyplot.figure(**figprop)
         ax = matplotlib.pyplot.axes(**axprop)
+    ax._autoscaleXon = False
+    ax._autoscaleYon = False
     return ax
 
 def bmap(bounds=[-89, -83, 8, 14],
