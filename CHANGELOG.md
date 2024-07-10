@@ -1,3 +1,6 @@
+# 1.0.2
+- Renamed all lower case
+  
 # 1.0.1
 - Requirements and doc fixed
 - Accuracy tutorial improved with more explanations

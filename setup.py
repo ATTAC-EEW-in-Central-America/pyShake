@@ -4,8 +4,8 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name='pyShake',
-    version='1.0.1',
+    name='pyshake',
+    version='1.0.2',
     author='Fred Massin',
     author_email='fmassin@ethz.ch',
     description='Testing installation of Package',
@@ -16,6 +16,6 @@ setuptools.setup(
         "Bug Tracker": "https://github.com/ATTAC-EEW-in-Central-America/pyShake/issues"
     },
     license='AGPL-3.0',
-    packages=['pyShake'],
+    packages=['pyshake'],
     install_requires=['obspy','shapely','cartopy']
 )
