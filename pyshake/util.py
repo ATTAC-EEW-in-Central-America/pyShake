@@ -106,8 +106,10 @@ def tttinterp(model='iasp91',
     travel times modeling at any distance such as:
     `time = ttt[phases](dist)`
     """
-    if taup:
-        mod = TauPyModel(model=model)
+    if not taup:
+        print('TauP cannot be imported, this does not work')
+        return ttt
+    mod = TauPyModel(model=model)
     distances=linspace(.001,dmax,64)
     
     for phases in ttt.keys():
@@ -117,8 +119,7 @@ def tttinterp(model='iasp91',
                  'distance_in_degree':d,
                  'phase_list':['tt'+phases],
                  'receiver_depth_in_km':0.0}
-            if taup:
-                arrivals+=[min([a.time for a in mod.get_travel_times(**opt)])]
+            arrivals+=[min([a.time for a in mod.get_travel_times(**opt)])]
         ttt[phases] = interp1d(distances,arrivals)
         #time = ttt[phases](dist)
     return ttt

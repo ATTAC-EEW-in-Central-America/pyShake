@@ -63,9 +63,11 @@ def leadtimes(inventory,
         statlats,statlons,statoff = inv2coord(inventory,
                                               declust=declust)    
 
-    if taup:
-        mod = TauPyModel(model=model)
     leadtime = zeros(len(catalog))
+    if not taup:
+        print('TauP cannot be imported, this does not work')
+        return leadtime
+    mod = TauPyModel(model=model)
     for e,event in enumerate(catalog):
 
         origin = event.preferred_origin_id.get_referred_object()
