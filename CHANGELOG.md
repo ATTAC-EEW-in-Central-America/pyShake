@@ -1,3 +1,11 @@
+# 1.0.3
+- Chronology and error plots 
+- EEW class table
+- Support station number threshold
+- Support and import full SeisComP event parameters via xml dump 
+- Fix ESE EEW solution report reader 
+- Fix basemap tick labels
+
 # 1.0.2
 - Renamed all lower case
   

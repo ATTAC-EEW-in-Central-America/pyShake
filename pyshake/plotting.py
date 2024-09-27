@@ -187,6 +187,7 @@ def makefigax(fig=None,ax=None,axprop={},figprop={}):
 def bmap(bounds=[-89, -83, 8, 14],
          figsize=(5,5),
          rightside=True,
+         top=False,
          fig=None,
          ax=None,
          legendfaults=True,
@@ -200,17 +201,29 @@ def bmap(bounds=[-89, -83, 8, 14],
 
     projection=ccrs.Orthographic(central_longitude=midlo,central_latitude=mila)
     
-    ax=makefigax(fig=fig,ax=ax,axprop={'projection':projection},figprop={'figsize':figsize})
+    ax=makefigax(fig=fig,
+                 ax=ax,
+                 axprop={'projection':projection},
+                 figprop={'figsize':figsize})
 
 
     ax.set_extent([bounds[0]-padlo, bounds[1]+padlo,
                    bounds[2]-padla, bounds[3]+padla])
     
-    gl=ax.gridlines(draw_labels=True, dms=True, x_inline=False, y_inline=False)
+    gl=ax.gridlines(draw_labels=True, 
+                    dms=True, 
+                    x_inline=False, 
+                    y_inline=False)
+    
     if rightside:
         gl.right_labels= False
     else:
         gl.left_labels= False
+    if top:
+        gl.top_labels= False
+    else:
+        gl.bottom_labels= False
+
     gl.ylabel_style=label_style
     gl.xlabel_style=label_style
     gl.xpadding=7
@@ -265,8 +278,9 @@ def plot(Hyp,
          label='T$^{+}_{%s}$',
          times=None,
          labelmarkersize=64,
-         facecolors={'Mfd':'C1','MVS':'C2','None':'C0'},
+         facecolors={'Mfd':'C1','MVS':'C2','None':[1,0,1]},
          cmaps={'Mfd':'autumn','MVS':'winter'},
+         nodt=False,
          **opt):
     
     norm = colors.FuncNorm((_forward, _inverse), 
@@ -285,14 +299,21 @@ def plot(Hyp,
         s=mtypes.index(mtype)
         x=[xyz[0]                            for xyz in Hyp[mtype]]
         y=[xyz[1]                            for xyz in Hyp[mtype]]
+        z=[xyz[2]                            for xyz in Hyp[mtype]]
         m=[mag2size(xyz[3])                  for xyz in Hyp[mtype]]        
-        a=[((xyz[4]-lima[0])/lima[1]+.5)*2/3 for xyz in Hyp[mtype]]
+        # alpha by time
+        a=[((xyz[4]-lima[0])/lima[1]+.5)*2/3 for xyz in Hyp[mtype]]       
+        # alpha by depth
+        #a=[((xyz[4]-lima[0])/lima[1]+.5)*2/3 for xyz in Hyp[mtype]]
         dt=[xyz[5]                           for xyz in Hyp[mtype]]
 
         if len(Hyp[mtype]) and len(Hyp[mtype][0])>6:
             xx=[[xyz[0],xyz[6]]              for xyz in Hyp[mtype]]
             yy=[[xyz[1],xyz[7]]              for xyz in Hyp[mtype]]
-            dt=[xyz[-1]                      for xyz in Hyp[mtype]]
+            dt=[xyz[11]                      for xyz in Hyp[mtype]]
+
+        if nodt:
+            dt=[ 0                           for xyz in Hyp[mtype]]
 
         o=argsort(m)
         
@@ -306,7 +327,7 @@ def plot(Hyp,
                    [labelmarkersize], 
                    edgecolor='k', 
                    linewidths=.5,
-                   facecolor='C%d'%(len(mtypes)-1-s), 
+                   facecolor=facecolors[mtype],#'C%d'%(len(mtypes)-1-s), 
                    label=label%mt+addlab, 
                    **opt)
         

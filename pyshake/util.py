@@ -4,6 +4,13 @@ Misc utility module.
 """
 
 from obspy.geodetics.base import gps2dist_azimuth
+from obspy.core.event import Catalog
+from obspy import read_events, UTCDateTime
+
+from os.path import exists
+
+import subprocess
+
 import numpy
 from fnmatch import fnmatch
 try:
@@ -19,6 +26,8 @@ except Exception as e:
     print(e)
 
 from pyshake import gm
+
+
 
 def inv2coord(inventory,
               declust=0.01,
@@ -401,3 +410,80 @@ def polygonthreshold(polygon,
             return minmag
         intensity = groundmotionmodel.get_intensity(distance,minmag, **kwargs)
     return None
+
+def ssh_event(sshuserhost='user@host',
+              dbplugin='dbmysql',
+              db='localhost/seiscomp3',
+              opt='-fma',
+              seiscomp='',
+              eventid=None,
+              minlatitude=-90,
+              maxlatitude=90,
+              minlongitude=-180,
+              maxlongitude=180,
+              minmagnitude=0,
+              maxmagnitude=10,
+              mintime=UTCDateTime()-60*60,
+              maxtime=UTCDateTime()):
+
+    ssh = subprocess.Popen(["ssh",
+                            "-i ~/.ssh/id_rsa",
+                            sshuserhost],
+                            stdin =subprocess.PIPE,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            universal_newlines=True,
+                            bufsize=0)
+    
+    if eventid is None:
+        queryparam = (minlatitude,
+                    maxlatitude,
+                    minlongitude,
+                    maxlongitude,
+                    minmagnitude,
+                    maxmagnitude,
+                    mintime.isoformat().replace('T',' ')[:19],
+                    maxtime.isoformat().replace('T',' ')[:19])
+        query="SELECT PEvent.publicID, Origin.time_value AS OT, Origin.latitude_value,Origin.longitude_value, Origin.depth_value, Magnitude.magnitude_value, Magnitude.type FROM Origin,PublicObject as POrigin, Event, PublicObject AS PEvent, Magnitude, PublicObject as PMagnitude WHERE Event._oid = PEvent._oid AND Origin._oid = POrigin._oid AND Magnitude._oid = PMagnitude._oid AND PMagnitude.publicID=Event.preferredMagnitudeID AND POrigin.publicID = Event.preferredOriginID AND Origin.latitude_value >= %s AND Origin.latitude_value <= %s AND Origin.longitude_value >= %s AND Origin.longitude_value <= %s AND Magnitude.magnitude_value >= %s AND Magnitude.magnitude_value <= %s AND Origin.time_value >= '%s' AND Origin.time_value <= '%s';"%queryparam
+        scquery = '%s scquery --debug --plugins %s -d %s -Q \"%s\" |grep -v "^$"| while read ID TRASH;do %s scxmldump %s --debug --plugins %s -d %s   -E $ID ;done' % (seiscomp, dbplugin, db, query, seiscomp, opt, dbplugin, db)
+    
+        ssh.stdin.write(scquery)
+    else :
+        #%s scquery --debug --plugins %s -d %s -Q \"%s\" |grep -v "^$"| while read ID TRASH;do % seiscomp, dbplugin, db, query, 
+        scdump = '%s scxmldump %s --debug --plugins %s -d %s -E %s ' % (seiscomp, opt, dbplugin, db, eventid)
+
+        ssh.stdin.write(scdump)
+
+    ssh.stdin.close()
+
+    # Fetch output
+    string = ''.join([line.replace('>\n','>') for line in ssh.stdout if ('<' in line and '>' in line)])
+    if len(string):
+        string=string.replace('0.11" version="0.11','0.10" version="0.10')
+        string=string.replace('0.12" version="0.12','0.10" version="0.10')
+        f=open('/tmp/tmp.xml', 'w+') 
+        f.write(string)
+        f.close()
+        try:
+            return read_events('/tmp/tmp.xml',format='SC3ML')
+        except:
+            for n in range(9999):
+                path_to_file='invalid.%s.xml'%n
+                if not exists(path_to_file):
+                    break
+            f=open(path_to_file, 'w+') 
+            f.write(string)
+            f.close()
+            print('Cannot read',path_to_file)
+            return Catalog()
+    else:
+        #print('Failed:')
+        #print(scquery)
+        #print([line for line in ssh.stderr])
+        string = ''.join([line for line in ssh.stderr])
+        f=open('.stderr', 'w+') 
+        f.write(string)
+        f.close()
+        print('Cannot get event from %s .stderr'%sshuserhost)
+        return Catalog()
+

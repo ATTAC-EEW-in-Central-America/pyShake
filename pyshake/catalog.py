@@ -5,15 +5,41 @@ Catalog module.
 
 import io, glob
 
-from numpy import argmin 
-from obspy.core import UTCDateTime
-from obspy.clients.fdsn import Client
+from numpy import argmin, asarray, sqrt, argsort, nan, sort
 from pandas import read_csv, DataFrame, concat
 import cartopy.crs as ccrs
 
-from pyshake.util import isincountries, eventdistance, eventcountrydistance 
-from pyshake.plotting import plot, bmap, size2mag
+from obspy.core import UTCDateTime
+from obspy.clients.fdsn import Client
+from obspy.geodetics.base import gps2dist_azimuth
+
+from pyshake.util import isincountries, eventdistance, eventcountrydistance
+from pyshake.plotting import plot, bmap, size2mag, mag2size
 from pyshake.gm import gmm
+
+import imp
+import pyshake.plotting
+imp.reload(pyshake.plotting)
+plot = pyshake.plotting.plot
+
+from matplotlib.pyplot import figure
+from matplotlib import colors
+from matplotlib.ticker import AutoMinorLocator
+from matplotlib import cm 
+from matplotlib.colors import NoNorm
+
+
+#print(Tp)
+#    0         1      2      3                    4                                5      6      7       8     9             10                          11
+#[-91.3759, 13.988, 78.238, 5.4, UTCDateTime(2023, 12, 14, 17, 55, 31, 836000), -9.836, -91.58, 13.99, 62.51, 5.15, UTCDateTime(2023, 12, 14, 17, 55), 28.93],
+#   lon       lat      dep   ma                 time                             bad dt   lon    lat     dep   ma         time                       ref dt
+#    rf        ref      ref  ref                 ref                               ?      EEW    eew    eew   eew         eew                        eew                 
+#print(Fp)
+#print(Fn)
+
+def sortarg(x):
+    s = sorted(x)
+    return [s.index(d) for d in x]
 
 def get_eventindex(url,method='pandas',**opt):
     """
@@ -104,7 +130,7 @@ def eew_report2dict(files='.seiscomp/EEW_reports/*txt'):
 
             for k in report:
                 for i,e in enumerate(report[k]):
-                    if e==True:
+                    if isinstance(e,bool) and e==True:
                         report[k][i]=None
 
             if 'creation time (UTC)' in report:#'creationtime(UTC)', 'origintime(UTC)'
@@ -300,7 +326,7 @@ def getref(reports,
 
 def matchreports(reports, cat,
                  maxhypocentraldist=150,
-                 maxtimediff=3*60,
+                 maxtimediff=100,
                  v=(5.5+3.3)/2):
     """
     Compares earthquake reports with a reference catalog using event sources parameters
@@ -329,14 +355,24 @@ def matchreports(reports, cat,
     :rtype: :py:class:`dict`
     """
             
-    print('Similar origin times')
-    ots={str(ot):[ot] for eventid in reports for ot in reports[eventid]['origin time (UTC)']}
-    n=0
-    for ot in ots:
-        ots[ot] = cat.loc[abs(cat.time-ots[ot])<maxtimediff]
-        if  len(ots[ot].longitude): 
-            n+=1
-    print(n,'reports with matching origin time')
+    if True:
+        print('Similar origin times')
+        ots={str(ot):[ot] for eventid in reports for ot in reports[eventid]['origin time (UTC)']}
+        n=0
+        for ot in ots:
+            ots[ot] = cat.loc[ abs(ots[ot]-cat.time)<maxtimediff ] # () & ((ots[ot]-cat.time)>-10)
+            if  len(ots[ot].longitude): 
+                n+=1
+        print(n,'reports with matching origin time')
+    else:
+        print('Similar creation times')
+        cts={str(ct):[ct] for eventid in reports for ct in reports[eventid]['Creation t.']}
+        n=0
+        for ct in cts:
+            cts[ct] = cat.loc[ ( (cts[ct]-cat.time)<maxtimediff ) & ((cat.time-cts[ct])>5) ]
+            if  len(cts[ct].longitude): 
+                n+=1
+        print(n,'reports with matching creation time')
 
     print('Similar origin locations')
     n1=0
@@ -344,13 +380,23 @@ def matchreports(reports, cat,
     for eventid in reports:
         reports[eventid]['reference']=[None for e in reports[eventid]['Lon.']]
         reports[eventid]['reference solution']=[None for e in reports[eventid]['Lon.']]
+
         for i,ot in enumerate(reports[eventid]['origin time (UTC)']):
             eew=[reports[eventid]['Lat.'][i],reports[eventid]['Lon.'][i],reports[eventid]['Depth'][i]]
-            tmp=ots[str(ot)]
+            tmp=ots[str(ot)] 
+        
+        #for i,ct in enumerate(reports[eventid]['Creation t.']):
+        #    ot=reports[eventid]['origin time (UTC)'][i]
+        #    eew=[reports[eventid]['Lat.'][i],reports[eventid]['Lon.'][i],reports[eventid]['Depth'][i]]
+        #    tmp=cts[str(ct)]
+
             if not len(tmp.longitude):
                 continue
             hyperdistances=[]
             for j in range(len(tmp.longitude)):
+                #if reports[eventid]['Creation t.'][i] < tmp.time.values[j]-5:
+                #    print('EEW before origin:', reports[eventid]['Creation t.'][i], '<', tmp.time.values[j], '- 5s')
+                #    continue
                 ref=[tmp.latitude.values[j],tmp.longitude.values[j],tmp.depth.values[j]]
                 hypocentral_distance = eventdistance(*ref,*eew)
                 if hypocentral_distance>maxhypocentraldist:
@@ -363,6 +409,9 @@ def matchreports(reports, cat,
                     continue
                 hyperdistances += [hyper_distance]
             if not len(hyperdistances):
+                if reports[eventid]['Mag.'][i]>5:
+                    print('Warning: missing ref for')
+                    print(eventid)
                 continue
             reports[eventid]['reference'][i] = tmp.id.values[argmin(hyperdistances)]
             reports[eventid]['reference solution'][i] = tmp.iloc[argmin(hyperdistances)]
@@ -377,7 +426,8 @@ def alert_accuracy(reports, references,
                  Lmin=0.8,    
                  Dmin=0.1,    
                  MMImin=4,
-                 ipm=gmm):
+                 ipm=gmm,
+                 stationmin=2):
     """
     Evaluates the accuracy of earthquake reports by comparing their alert
     parameters (from the event first solution over alerting criteria) with the
@@ -406,6 +456,9 @@ def alert_accuracy(reports, references,
     :param Lmin: The minimum likelihood value for a seismic event reports to be 
         considered in the analysis. 
     :type Lmin: :py:class:`float`, optional
+    :param stationmin: The minimum number of station magnitude contributions for 
+        a seismic event reports to be considered in the analysis. 
+    :type stationmin: :py:class:`int`, optional
     :param Dmin: The minimum allowable difference in longitude and latitude values 
         when comparing locations. 
     :type Dmin: :py:class:`float`, optional
@@ -455,6 +508,15 @@ def alert_accuracy(reports, references,
         for i,mtype in enumerate(reports[evtid]['Type']):
             if Mtypes is not None and mtype not in Mtypes:
                 continue
+            
+            nmag = reports[evtid]['Ma.'][i]
+            if nmag is not None and nmag != 0 and nmag<stationmin:
+                print('!!!!!',nmag,'station only in',evtid)
+                continue
+            norg = reports[evtid]['Or.'][i]
+            if norg is not None and norg != 0 and norg<stationmin:
+                print('!!!!!',norg,'station only in',evtid)
+                continue
 
             m = reports[evtid]['Mag.'][i]
             if m is None :
@@ -478,7 +540,7 @@ def alert_accuracy(reports, references,
 
             dt = reports[evtid]['Tdiff'][i]
             ot = reports[evtid]['origin time (UTC)'][i]
-            eew = [lo,la,de,m,ot,dt]
+            eew = [lo,la,de,m,ot,dt,evtid]
 
             refsol = reports[evtid]['reference solution'][i]
             if evtid in FPids :
@@ -544,6 +606,7 @@ def alert_accuracy(reports, references,
 def map(reports,references,
         TFpn=None,
         rightside=True,
+        top=False,
         title=None,
         fig=None,ax=None,
         figsize=(8,8),
@@ -598,6 +661,8 @@ def map(reports,references,
         options['MMIcountry']=None
     if 'MMImin' not in options:
         options['MMImin']=None
+    if 'stationmin' not in options:
+        options['stationmin']=None
 
     if TFpn is None:
         Tp, Fp, Fn, bounds = alert_accuracy(reports,references,
@@ -605,7 +670,8 @@ def map(reports,references,
                                         Lmin=options['Lmin'],
                                         Mtypes=options['Mtypes'],
                                         MMIcountry=options['MMIcountry'],
-                                        MMImin=options['MMImin'])
+                                        MMImin=options['MMImin'],
+                                        stationmin=options['stationmin'])
     else:
         Tp, Fp, Fn, bounds = TFpn
 
@@ -620,6 +686,7 @@ def map(reports,references,
             figsize=figsize,
             legendfaults=legendfaults,
             bg=bg,
+            top=top,
             rightside=rightside)
 
     times = [xyz[4] for mtype in Tp for xyz in Tp[mtype]]+\
@@ -639,13 +706,14 @@ def map(reports,references,
                    transform=ccrs.Geodetic(),
                    zorder=97)
     
-    plot(Fp,
+    plot({mtype: [ xyz[:6] for xyz in Fp[mtype]] for mtype in Fp},
          mtypes,
          ax,
          label='F$^{+}_{%s}$',
          marker='X',
          times=times,
          transform=ccrs.Geodetic(),
+         nodt=True,
          zorder=98)
     
     plot(Fn,
@@ -671,13 +739,12 @@ def map(reports,references,
         h = h2 + h[::-1]
         l = l2 + l[::-1]
 
-
     locbar = 'left'
     loclegend = 'right'
     bbox_to_anchor = 0
     bbox = ax.get_position() 
     
-    if rightside:
+    if not rightside:
         locbar = 'right'
         loclegend = 'left'
         bbox_to_anchor = 1
@@ -692,11 +759,31 @@ def map(reports,references,
                                   bbox.height/2.5])
     cax.axis('off')
         
+    if colorbar:    
+        for im in scattercmaps:
+            cbar = ax.figure.colorbar(im[0], 
+                            ax=cax,
+                            location=locbar,
+                            fraction=.8,
+                            pad=0,
+                            panchor=(0,0),
+                            #use_gridspec=True,
+                            #shrink=0.5
+                            )
+            cbar.set_label(im[1], 
+                            rotation=90)
+            if locbar == 'left':
+                locbar = 'right'
+            else:
+                locbar = 'left'
+
+
     l=ax.legend(h, l,
                 ncol=1,
                 fontsize='x-small',
-                bbox_to_anchor=(bbox_to_anchor,0), 
-                loc="lower %s"%loclegend)        
+                #bbox_to_anchor=(bbox_to_anchor,0), 
+                #loc="lower %s"%loclegend
+                )        
 
     t = '%d ev.'%n
 
@@ -723,18 +810,6 @@ def map(reports,references,
     l.set_title(title=t, prop={'weight':'bold'})
 
     
-    if colorbar:    
-        for im in scattercmaps:
-            cbar = ax.figure.colorbar(im[0], 
-                            ax=cax,
-                            location=locbar,
-                            fraction=.8,
-                            #use_gridspec=True,
-                            #shrink=0.5
-                            )
-            cbar.set_label(im[1], 
-                            rotation=90)
-
     return ax
 
 
@@ -754,33 +829,669 @@ def table(reports=None,references=None,TFpn=None,**options):
         :func:`pyshake.catalog.alert_accuracy`, making table output faster.
     :type TFpn: :py:class:`tuple`, optional
 
-    :return: The table of false events that can be viewed with :py:func:`print` 
-        or :py:func:`display`.
-    :rtype: :external:py:class:`pandas.DataFrame`
+    :return: The matplotlib axis where the plots have been created
+    :rtype: :external:py:class:`matplotlib.axes.Axes`
     """
     
+    if 'Mmin' not in options:
+        options['Mmin']=None
+    if 'Lmin' not in options:
+        options['Lmin']=None
+    if 'Mtypes' not in options:
+        options['Mtypes']=None
+    if 'MMIcountry' not in options:
+        options['MMIcountry']=None
+    if 'MMImin' not in options:
+        options['MMImin']=None
+    if 'stationmin' not in options:
+        options['stationmin']=None
+
     if TFpn is None:
         Tp, Fp, Fn, bounds = alert_accuracy(reports,references,
                                         Mmin=options['Mmin'],
                                         Lmin=options['Lmin'],
                                         Mtypes=options['Mtypes'],
                                         MMIcountry=options['MMIcountry'],
-                                        MMImin=options['MMImin'])
+                                        MMImin=options['MMImin'],
+                                        stationmin=options['stationmin'])
     else:
          Tp, Fp, Fn, bounds = TFpn
     #print(Fp)
     #print(Fn)
     
-    columns=('Longitude','Latitude','Depth','Magnitude','Origin time','EEW delay')
+    columns=('Longitude','Latitude','Depth','Magnitude','Origin time')#,'EEW delay')
     dtfs = []
     for mtype in Fp:
-        dtfs += [DataFrame(Fp[mtype],
+        dtfs += [DataFrame([xyz[:5] for xyz in Fp[mtype]], #Fp[mtype],
                             columns=columns,
-                            index=['%s & F+'%mtype for e in Fp[mtype] ])]
+                            index=[('F+',mtype) for e in Fp[mtype] ])]
     
     for mtype in Fn:
-        dtfs += [DataFrame(Fn[mtype],
+        dtfs += [DataFrame([xyz[:5] for xyz in Fn[mtype]], #Fn[mtype],
                             columns=columns,
-                            index=['F-' for e in Fn[mtype] ])]
+                            index=[('F-','') for e in Fn[mtype] ])]
         
     return concat(dtfs)
+
+
+def errors(reports=None,
+           references=None,
+           TFpn=None,
+           ax=None,
+           title=None,
+           subtitle=False,
+           cmaps={'Mfd':'autumn','MVS':'winter'},
+           colorbar=True,
+           rightside=False,
+           cax=None,
+           legendsize=True,
+           lax=None,
+           **options):
+    """
+    Run :func:`pyshake.catalog.alert_accuracy` (supporting all its related 
+    parameters) and generate a location and magnitude error histogram.
+    
+    :param reports: A dictionary of EEW reports with reference solutions as 
+        provided by :func:`pyshake.catalog.matchreports`.
+    :type reports: :py:class:`dict`
+    :param references: The reference catalog of seismic events as provided by 
+        :func:`pyshake.catalog.getref` to find events missing from reports.
+    :type references: :external:py:class:`pandas.DataFrame`
+    :param TFpn: Pre-computer event classification as provided by 
+        :func:`pyshake.catalog.alert_accuracy`, making table output faster.
+    :type TFpn: :py:class:`tuple`, optional
+
+    :return: The table of false events that can be viewed with :py:func:`print` 
+        or :py:func:`display`.
+    :rtype: :external:py:class:`matplotlib.DataFrame`
+    """
+    
+    if ax is None:
+        ax = figure().gca()
+        
+    if 'Mmin' not in options:
+        options['Mmin']=None
+    if 'Lmin' not in options:
+        options['Lmin']=None
+    if 'Mtypes' not in options:
+        options['Mtypes']=None
+    if 'MMIcountry' not in options:
+        options['MMIcountry']=None
+    if 'MMImin' not in options:
+        options['MMImin']=None
+    if 'stationmin' not in options:
+        options['stationmin']=None
+
+    if TFpn is None:
+        Tp, Fp, Fn, bounds = alert_accuracy(reports,references,
+                                        Mmin=options['Mmin'],
+                                        Lmin=options['Lmin'],
+                                        Mtypes=options['Mtypes'],
+                                        MMIcountry=options['MMIcountry'],
+                                        MMImin=options['MMImin'],
+                                        stationmin=options['stationmin'])
+    else:
+         Tp, Fp, Fn, bounds = TFpn
+
+    def _forward(x):
+        return sqrt(x)
+    def _inverse(x):
+        return x**2
+
+    norm = colors.FuncNorm((_forward, _inverse), 
+                            vmin=0, 
+                            vmax=200)
+    
+    n = 0 
+    scattercmaps={}
+    beginend = sort([ xyzmte[4] for mtype in Tp for xyzmte in Tp[mtype]  ])
+    for i,mtype in enumerate(Tp):
+        
+        n += len(Tp[mtype])
+        
+        dist = [ eventcountrydistance(options['MMIcountry'], (xyzmte[0],xyzmte[1],xyzmte[2]) ) for xyzmte in Tp[mtype]  ]
+        d_epi = [ gps2dist_azimuth(xyzmte[1],xyzmte[0],xyzmte[7],xyzmte[6])[0]/1000.0 for xyzmte in Tp[mtype]  ] 
+        d_dep = [ xyzmte[8] - xyzmte[2] for xyzmte in Tp[mtype]  ] 
+        d_hyp = [(d_epi[i]**2 + d_dep[i]**2)**.5 for i,x in enumerate(d_dep)]
+        d_mag = [ xyzmte[9]-xyzmte[3] for xyzmte in Tp[mtype] ] 
+        mag = [ xyzmte[3] for xyzmte in Tp[mtype] ]     
+
+        times = [ xyzmte[4] for xyzmte in Tp[mtype] ]   
+        alphas = asarray(sortarg(times)) 
+        alphas = alphas + max(alphas)/3 
+        alphas = alphas / max(alphas)
+        
+        c = cm.ScalarMappable(norm=norm, cmap=cmaps[mtype]).to_rgba(dist)
+        c[:,-1] = alphas
+        
+        scattercmaps[mtype] = ax.scatter([nan,nan],[nan,nan],
+                                         mag2size(asarray([3,7])),
+                                         [nan,nan],
+                                         cmap=cmaps[mtype],   
+                                         norm=norm,
+                                         alpha=0.5)
+        
+        ax.scatter(d_hyp,
+                    d_mag,
+                    mag2size(asarray(mag)),
+                    c,#dist,
+                    marker='oo'[i],           
+                    linewidths=1.0,
+                    zorder=9999)
+        
+    locbar = 'left'
+    bbox = ax.get_position() 
+    if cax is None:
+        if rightside:
+            locbar = 'right'
+            cax = ax.figure.add_axes([bbox.x0+bbox.width, 
+                                    bbox.y0+bbox.height-bbox.height/2.5, 
+                                    bbox.width/1.5, 
+                                    bbox.height/2.5])
+        else:
+            cax = ax.figure.add_axes([bbox.x0-bbox.width/1.5, 
+                                    bbox.y0+bbox.height-bbox.height/2.5, 
+                                    bbox.width/1.5, 
+                                    bbox.height/2.5])
+    cax.axis('off')
+        
+    if colorbar:    
+        for mtype in scattercmaps:
+            cbar = ax.figure.colorbar(scattercmaps[mtype], 
+                            ax=cax,
+                            location=locbar,
+                            fraction=.8,
+                            pad=0,
+                            panchor=(0,0),
+                            #use_gridspec=True,
+                            #shrink=0.5
+                            )
+            cbar.set_label('M$_{%s}$'%mtype[1:], 
+                            rotation=90)
+            if locbar == 'left':
+                locbar = 'right'
+            else:
+                locbar = 'left'
+            cbar.solids.set(alpha=1)
+
+        cax.set_title('Country\ndistance (km)',
+                      loc=['right','center'][len(Tp)>1])
+
+    l=ax.legend()        
+
+    t = '%d Tp'%( n )
+
+    if title is not None:
+        t = '%s%s-%s\n%s'%(title, 
+                           str(beginend[0])[:7].replace('-','/'), 
+                           str(beginend[-1])[:7].replace('-','/'), 
+                           t)
+    
+    if subtitle and 'MMImin' in options :
+        t += '\n$^{%s}_{%s}$'%(sorted(times)[0].isoformat()[:16], sorted(times)[1].isoformat()[:16])
+        
+        if options['MMImin'] is not None:
+            t += '\n$MMI$'
+            if options['MMIcountry'] is not None:
+                t += '$_{%s}$'%options['MMIcountry'].capitalize() 
+            t += '$>%.1g$'%options['MMImin'] 
+
+        if options['Mmin'] is not None and options['Mtypes'] is not None:
+            t += '\n$M_{%s}$'%options['Mtypes'].replace('M','')
+            t += '$>%.1f$'%options['Mmin']
+
+        if options['Lmin'] is not None:
+            t += '\n$Lik.>%.1g$'%options['Lmin']        
+    
+    l.set_title(title=t, prop={'weight':'bold'})
+
+    if legendsize:
+        ax.add_artist(l)
+        kw = dict(prop="sizes", 
+                    num=4, 
+                    alpha=0.8,
+                    color='k',
+                    fmt="M{x:.2g}",
+                    func=size2mag)
+        if lax is None:
+            lax = ax
+        l = lax.legend(*scattercmaps[list(scattercmaps.keys())[0]].legend_elements(**kw),
+                            #loc="lower right", 
+                            title="Magnitude",
+                            loc='lower left')
+        lax.add_artist(l)
+        lax.scatter([nan],[nan],
+                    mag2size(asarray([5])),
+                    'k',
+                    label='Earliest',
+                    alpha=0.3)
+        lax.scatter([nan],[nan],
+                    mag2size(asarray([5])),
+                    'k',
+                    label='Latest',
+                    alpha=1)
+        l = lax.legend(title="Time",
+                            loc='upper left')
+        lax.add_artist(l)
+
+
+    ax.tick_params(right=True, top=True,
+                    left=True, bottom=True,
+                    which='both')
+    ax.xaxis.set_minor_locator(AutoMinorLocator())
+    ax.yaxis.set_minor_locator(AutoMinorLocator())
+    ax.grid( which='major', color='gray', linestyle='dashdot', zorder=-9999) #b=True,
+    ax.grid( which='minor', color='beige',  ls='-', zorder=-9999) #b=True,
+
+    return ax
+
+def event_eew_mag(events,
+                  MMIcountry='Costa Rica',
+                  Mtypes='Mfd,MVS',    
+                  Mmin=5.5,    
+                  Lmin=0.8,      
+                  MMImin=4,
+                  ipm=gmm,
+                  debug=False):
+    """
+    Evaluates alert parameters (from the event first solution over alerting criteria) 
+    on the input catalog of seismic event source parameters.
+
+    The alert parameters (maximal shaking intensity, MMI) are inferred from the  
+    source parameters and the alerting parameters (Mmin, Lmin, MMImin, MMIcountry, 
+    ipm, and Mtypes) provided as options.
+    
+    :param events: The reference catalog of seismic events.
+    :type events: :external:py:class:`obspy.core.event.Catalog`
+    :param MMIcountry: The country for which the maximal Modified Mercalli Intensity 
+        (MMI) is calculated. 
+    :type MMIcountry: :py:class:`str`
+    :param Mtypes: The comma-separated list of types of magnitudes that are 
+        considered for alerting in the event reports. 
+    :type Mtypes: :py:class:`str`
+    :param Mmin: The minimum magnitude threshold for an earthquake event to be 
+        considered in the analysis. 
+    :type Mmin: :py:class:`float`, optional
+    :param Lmin: The minimum likelihood value for a seismic event reports to be 
+        considered in the analysis. 
+    :type Lmin: :py:class:`float`, optional
+    :param Dmin: The minimum allowable difference in longitude and latitude values 
+        when comparing locations. 
+    :type Dmin: :py:class:`float`, optional
+    :param MMImin: The minimum value of the Modified Mercalli Intensity (MMI) that 
+        an earthquake must reach to be considered in the evaluation. 
+    :type MMImin: :py:class:`float`, optional
+    :param ipm: A prediction model to calculate the shaking intensity of a seismic event 
+        based on the country distance and magnitude of the event. See :mod:`pyshake.gm`.
+    :type ipm: :class:`pyshake.gm.gmm`, optional
+
+    :return: First event magnitudes exceeding the alert thresholds.
+    :rtype: :py:class:`list`
+    """
+    
+    eew_mags = [ None for e in events]
+    
+    for evtindex,e in enumerate(events):
+        
+        if e is None:
+            continue
+
+        ct = [m.creation_info.creation_time for m in  e.magnitudes]
+        for m in argsort(ct):
+
+            if eew_mags[evtindex] is not None:
+                print('This should never append')
+                continue
+
+            magnitude = e.magnitudes[m]
+            origin = ([None]+[o for o in e.origins if magnitude.origin_id.id == o.resource_id.id])[-1]
+
+            if debug:
+                print(origin.longitude,origin.latitude,origin.depth/1000.,magnitude.mag,origin.time)
+
+            if origin is None:
+                continue
+            
+            if Mtypes is not None and magnitude.magnitude_type not in Mtypes:
+                if debug:
+                    print(magnitude.magnitude_type,'not in',Mtypes)
+                continue
+
+            if magnitude.mag is None :
+                if debug:
+                    print(magnitude.mag,'is', None )
+                continue
+
+            if Mmin is not None and magnitude.mag < Mmin:
+                if debug:
+                    print(magnitude.mag,'<', Mmin)
+                continue
+
+            likelihood = [None]
+            likelihood += [float(c.text) for c in magnitude.comments if c.resource_id.id.split('/')[-1] == 'likelihood']
+            likelihood = likelihood[-1]
+            if likelihood is None :
+                if debug:
+                    print(likelihood,'is', None)
+                continue
+
+            if Lmin is not None and likelihood < Lmin:
+                if debug:
+                    print(likelihood,'<', Lmin)
+                continue
+            
+            di = eventcountrydistance(MMIcountry, 
+                                      (origin.longitude,
+                                       origin.latitude,
+                                       origin.depth/1000.))
+            mmi = ipm.get_intensity(di,
+                                    magnitude.mag)
+            if MMImin is not None and mmi < MMImin:
+                if debug:
+                    print(mmi,' <', MMImin)
+                continue
+            
+            eew_mags[evtindex] = [magnitude, origin]
+            break
+
+    return eew_mags
+
+def chronology(reports=None,
+              references=None,
+              TFpn=None,
+              ax=None,
+              title=None,
+              subtitle=False,
+              cmaps={'Mfd':'autumn','MVS':'winter','None':None},
+              colorbar=True,
+              rightside=False,
+              cax=None,
+              legendsize=True,
+              lax=None,
+              xml=True,
+              arrivalrank=4,
+              arrivalF=False,
+              **options):
+    """
+    Run :func:`pyshake.catalog.alert_accuracy` (supporting all its related 
+    parameters) and generate a chronology plot.
+    
+    :param reports: A dictionary of EEW reports with reference solutions as 
+        provided by :func:`pyshake.catalog.matchreports`.
+    :type reports: :py:class:`dict`
+    :param references: The reference catalog of seismic events as provided by 
+        :func:`pyshake.catalog.getref` to find events missing from reports.
+    :type references: :external:py:class:`pandas.DataFrame`
+    :param TFpn: Pre-computer event classification as provided by 
+        :func:`pyshake.catalog.alert_accuracy`, making table output faster.
+    :type TFpn: :py:class:`tuple`, optional
+
+    :return: The table of false events that can be viewed with :py:func:`print` 
+        or :py:func:`display`.
+    :rtype: :external:py:class:`matplotlib.DataFrame`
+    """
+    
+    if ax is None:
+        ax = figure().gca()
+        
+    if 'Mmin' not in options:
+        options['Mmin']=None
+    if 'Lmin' not in options:
+        options['Lmin']=None
+    if 'Mtypes' not in options:
+        options['Mtypes']=None
+    if 'MMIcountry' not in options:
+        options['MMIcountry']=None
+    if 'MMImin' not in options:
+        options['MMImin']=None
+    if 'stationmin' not in options:
+        options['stationmin']=None
+
+    if TFpn is None:
+        Tp, Fp, Fn, bounds = alert_accuracy(reports,references,
+                                        Mmin=options['Mmin'],
+                                        Lmin=options['Lmin'],
+                                        Mtypes=options['Mtypes'],
+                                        MMIcountry=options['MMIcountry'],
+                                        MMImin=options['MMImin'],
+                                        stationmin=options['stationmin'])
+    else:
+         Tp, Fp, Fn, bounds = TFpn
+
+    def _forward(x):
+        return sqrt(x)
+    def _inverse(x):
+        return x**2
+
+    norm = colors.FuncNorm((_forward, _inverse), 
+                            vmin=0, 
+                            vmax=200)
+    
+    def linnorm(x):
+        y = 1 - asarray(x)/150 #asarray(sortarg(times)) + 1
+        try:
+            y[y>1]=1
+            y[y<0]=0
+        except:
+            pass
+        y = y * 3/4 + 1/4 #/ max(alphas)
+        return y
+
+    scattercmaps={}
+    beginend = sort([ xyzmte[4] for mtype in Tp for xyzmte in Tp[mtype]  ])
+    n=0
+    for j,cl in  enumerate([Tp,Fp,Fn]):
+        for i,mtype in enumerate(cl):
+   
+            dist = [ eventcountrydistance(options['MMIcountry'], (xyzmte[0],xyzmte[1],xyzmte[2]) ) for xyzmte in cl[mtype]  ]
+            
+            if j==0:
+                d_epi = [ gps2dist_azimuth(xyzmte[1],xyzmte[0],xyzmte[7],xyzmte[6])[0]/1000.0 for xyzmte in cl[mtype]  ] 
+                d_dep = [ xyzmte[8] - xyzmte[2] for xyzmte in cl[mtype]  ] 
+                d_hyp = [(d_epi[i]**2 + d_dep[i]**2)**.5 for i,x in enumerate(d_dep)]
+            else:
+                d_hyp = [ 0 for xyzmte in cl[mtype]  ] 
+            
+            
+            d_time = [ xyzmte[11-(j*6)] for xyzmte in cl[mtype]  ] 
+            if j==2 or j==1:
+                d_time = [ 0 for xyzmte in cl[mtype]  ] 
+
+            mag = [ xyzmte[3] for xyzmte in cl[mtype] ]      
+            times = [ xyzmte[4].datetime for xyzmte in cl[mtype] ]          
+            arrivals = [ nan for xyzmte in cl[mtype] ]         
+            
+            if xml and ( arrivalF or j == 0 ):
+                
+                for e,xyzmte in enumerate(cl[mtype]):  
+                    
+                    if xyzmte[14-(j*6)] is None:
+                        continue
+
+
+                    magnitude = xyzmte[14-(j*6)][0]
+
+                    test = magnitude.creation_info.creation_time - xyzmte[10-(j*6)]                    
+                    d_time[e] = test
+                    
+                    event = xyzmte[15-(j*6)][0]
+                    if len(event.origins)>1:
+                        print('Not sure to get preferred origin for ')
+                        print(event)
+                    preforgtime = event.origins[0].time
+
+                    arrivaltimes = {}
+                    
+                    for p in event.picks:
+                        station = '%s.%s'%(p.waveform_id['network_code'],p.waveform_id['station_code'])
+                        if station not in arrivaltimes:
+                            arrivaltimes[station] = p.time
+                        if p.time < arrivaltimes[station] :
+                            arrivaltimes[station] = p.time
+
+                    test = [arrivaltimes[s] for s in arrivaltimes]
+
+                    if len(test)>=arrivalrank:
+                        arrivals[e] = sort(test)[arrivalrank-1] - preforgtime # xyzmte[10-(j*6)] 
+
+                
+            alphas = linnorm(dist)
+            
+            c = cm.ScalarMappable(norm=norm, cmap=cmaps[mtype]).to_rgba(d_hyp)#dist)
+            c[:,-1] = alphas
+
+            if j == 2:
+                c[:,0] = 1
+                c[:,1] = 0
+                c[:,2] = 1
+
+            if j==0 or j==2:
+                n += len(cl[mtype])
+            
+            if j==0 :
+                scattercmaps[mtype] = ax.scatter([nan,nan],[nan,nan],
+                                                mag2size(asarray([3,7])),
+                                                [nan,nan],
+                                                cmap=cmaps[mtype],   
+                                                norm=norm,
+                                                alpha=0.5)
+                
+                for i,dt in enumerate(d_time):
+                    if dt < 2 :
+                        d_time[i] = nan
+                        print('Ignoring ref/EEW matching issue with:')
+                        print(cl[mtype][i])
+            
+            ax.scatter(times,
+                    d_time,
+                    mag2size(asarray(mag)),
+                    c,
+                    marker='oXs'[j],           
+                    linewidths=1.0,
+                    label='%s (%d)'%(['T$^+_{%s}$','F$^+_{%s}$','F$^-_{%s}$'][j]%(mtype[1:]), len(cl[mtype])),
+                    clip_on = j==0,
+                    zorder=9999)
+            
+            ax.scatter(times,
+                    arrivals,
+                    mag2size(asarray(mag)),
+                    c,
+                    marker='___'[j],           
+                    linewidths=2.5,
+                    zorder=9999)
+        
+        
+    ax.scatter([nan,nan],
+                [nan,nan],
+                mag2size(asarray([3,7])),
+                'k',
+                marker='_',           
+                linewidths=1.0,
+                label='%d$^{th}$ arrival'%(arrivalrank),
+                zorder=9999)
+    
+    ax.set_ylim(bottom=0)
+    bbox = ax.get_position() 
+    if cax is None:
+        if rightside:
+            locbar = 'right'
+            cax = ax.figure.add_axes([bbox.x0+bbox.width, 
+                                    bbox.y0+bbox.height-bbox.height/2.5, 
+                                    bbox.width/1.5, 
+                                    bbox.height/2.5])
+        else:
+            cax = ax.figure.add_axes([bbox.x0-bbox.width/1.5, 
+                                    bbox.y0+bbox.height-bbox.height/2.5, 
+                                    bbox.width/1.5, 
+                                    bbox.height/2.5])
+    cax.axis('off')
+        
+    locbar = 'right'
+    if colorbar:    
+        for mtype in scattercmaps:
+            cbar = ax.figure.colorbar(scattercmaps[mtype], 
+                            ax=cax,
+                            location=locbar,
+                            fraction=.8,
+                            pad=0,
+                            panchor=(0,0),
+                            #use_gridspec=True,
+                            #shrink=0.5
+                            )
+            cbar.set_label('M$_{%s}$'%mtype[1:], 
+                            rotation=90)
+            if locbar == 'left':
+                locbar = 'right'
+            else:
+                locbar = 'left'
+            cbar.solids.set(alpha=1)
+
+        cax.set_title('Location\nerror (km, hyp.)',
+                      loc=['left','center'][len(Tp)>1])
+
+    l=ax.legend()        
+
+    t = '%d ev.'%( n )
+
+    if title is not None:
+        t = '%s%s-%s\n%s'%(title, 
+                           str(beginend[0])[:7].replace('-','/'), 
+                           str(beginend[-1])[:7].replace('-','/'), 
+                           t)
+    
+    if subtitle and 'MMImin' in options :
+        t += '\n$^{%s}_{%s}$'%(sorted(times)[0].isoformat()[:16], sorted(times)[1].isoformat()[:16])
+        
+        if options['MMImin'] is not None:
+            t += '\n$MMI$'
+            if options['MMIcountry'] is not None:
+                t += '$_{%s}$'%options['MMIcountry'].capitalize() 
+            t += '$>%.1g$'%options['MMImin'] 
+
+        if options['Mmin'] is not None and options['Mtypes'] is not None:
+            t += '\n$M_{%s}$'%options['Mtypes'].replace('M','')
+            t += '$>%.1f$'%options['Mmin']
+
+        if options['Lmin'] is not None:
+            t += '\n$Lik.>%.1g$'%options['Lmin']        
+    
+    l.set_title(title=t, prop={'weight':'bold'})
+
+    if legendsize:
+        ax.add_artist(l)
+        kw = dict(prop="sizes", 
+                    num=4, 
+                    alpha=0.8,
+                    color='k',
+                    fmt="M{x:.2g}",
+                    func=size2mag)
+        if lax is None:
+            lax = ax
+        l = lax.legend(*scattercmaps[list(scattercmaps.keys())[0]].legend_elements(**kw),
+                            #loc="lower right", 
+                            title="Magnitude",
+                            loc='lower left')
+        lax.add_artist(l)
+        
+        for d in [150,75,0]:
+            lax.scatter([nan],[nan],
+                        mag2size(asarray([5])),
+                        'k',
+                        label='%d'%d,
+                        alpha=linnorm(d))
+            
+        l = lax.legend(title="Country\ndistance\n(km)",
+                            loc='upper left')
+        lax.add_artist(l)
+
+    if ax.get_ylim()[1]>100:
+        ax.set_yscale('symlog',linthresh=100)
+    ax.tick_params(right=True, top=True,
+                    left=True, bottom=True,
+                    which='both')
+    ax.xaxis.set_minor_locator(AutoMinorLocator())
+    ax.yaxis.set_minor_locator(AutoMinorLocator())
+    ax.grid( which='major', color='gray', linestyle='dashdot', zorder=-9999) #b=True,
+    ax.grid( which='minor', color='beige',  ls='-', zorder=-9999) #b=True,
+        
+    return ax

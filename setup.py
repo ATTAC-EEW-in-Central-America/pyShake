@@ -5,10 +5,10 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name='pyshake',
-    version='1.0.2',
+    version='1.0.3',
     author='Fred Massin',
     author_email='fmassin@ethz.ch',
-    description='Testing installation of Package',
+    description='The EEW Analysis Package for Python',
     long_description=long_description,
     long_description_content_type="text/markdown",
     url='https://github.com/ATTAC-EEW-in-Central-America/pyShake',
