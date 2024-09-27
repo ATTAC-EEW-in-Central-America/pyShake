@@ -5,7 +5,12 @@ Event module.
 
 from pyshake.util import inv2coord, haversine, tttinterp
 from numpy import pi,argsort,nan,mgrid,zeros,nanmin,nanmax,sort
-from obspy.taup import TauPyModel
+taup=True
+try:
+    from obspy.taup import TauPyModel
+except Exception as e:
+    print(e)
+    taup=False
 from obspy.geodetics.base import gps2dist_azimuth
 
 def leadtimes(inventory,
@@ -58,7 +63,8 @@ def leadtimes(inventory,
         statlats,statlons,statoff = inv2coord(inventory,
                                               declust=declust)    
 
-    mod = TauPyModel(model=model)
+    if taup:
+        mod = TauPyModel(model=model)
     leadtime = zeros(len(catalog))
     for e,event in enumerate(catalog):
 
@@ -88,7 +94,9 @@ def leadtimes(inventory,
         opt={'source_depth_in_km':origin.depth/1000,
              'distance_in_degree':dstation/mtodeg,
              'phase_list':['ttp']} 
-        ttp = min([a.time for a in mod.get_travel_times(**opt)])
+        ttp=None
+        if taup:
+             ttp = min([a.time for a in mod.get_travel_times(**opt)])
         
         
         
