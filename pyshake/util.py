@@ -89,8 +89,12 @@ def haversine(lon1, lat1, lon2, lat2,
     
     return abs(c * r)
 
-
-from obspy.taup import TauPyModel
+taup=True
+try:
+    from obspy.taup import TauPyModel
+except Exception as e:
+    print(e)
+    taup=False
 from scipy.interpolate import interp1d
 from numpy import linspace
 def tttinterp(model='iasp91',
@@ -102,7 +106,8 @@ def tttinterp(model='iasp91',
     travel times modeling at any distance such as:
     `time = ttt[phases](dist)`
     """
-    mod = TauPyModel(model=model)
+    if taup:
+        mod = TauPyModel(model=model)
     distances=linspace(.001,dmax,64)
     
     for phases in ttt.keys():
@@ -112,7 +117,8 @@ def tttinterp(model='iasp91',
                  'distance_in_degree':d,
                  'phase_list':['tt'+phases],
                  'receiver_depth_in_km':0.0}
-            arrivals+=[min([a.time for a in mod.get_travel_times(**opt)])]
+            if taup:
+                arrivals+=[min([a.time for a in mod.get_travel_times(**opt)])]
         ttt[phases] = interp1d(distances,arrivals)
         #time = ttt[phases](dist)
     return ttt
