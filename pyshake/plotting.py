@@ -275,11 +275,11 @@ def _inverse(x):
 def plot(Hyp,
          mtypes,
          ax,
-         label='T$^{+}_{%s}$',
+         label='Tp$^{%s}$',
          times=None,
          labelmarkersize=64,
          facecolors={'Mfd':'C1','MVS':'C2','None':[1,0,1]},
-         cmaps={'Mfd':'autumn','MVS':'winter'},
+         cmaps={'Mfd':'autumn','MVS':'winter','None':None},
          nodt=False,
          **opt):
     
@@ -322,13 +322,25 @@ def plot(Hyp,
             mt=''
         addlab=' (%d ev.)'%len(m)
 
-        ax.scatter([None], 
-                   [None], 
-                   [labelmarkersize], 
+        inputs = [[None], 
+                  [None], 
+                  [labelmarkersize]]
+        facecolor = None
+        if 'Fp' in label%mt+addlab:
+            inputs += [[0]]
+        if 'Tp' in label%mt+addlab:
+            inputs += [[10]]
+        if 'Fn' in label%mt+addlab:
+            facecolor=facecolors[mtype],#'C%d'%(len(mtypes)-1-s), 
+
+        ax.scatter(*inputs,
                    edgecolor='k', 
                    linewidths=.5,
-                   facecolor=facecolors[mtype],#'C%d'%(len(mtypes)-1-s), 
+                   facecolor=facecolor,#facecolors[mtype],#'C%d'%(len(mtypes)-1-s), 
                    label=label%mt+addlab, 
+                   cmap=cmaps[mtype],
+                   norm=norm,
+                   alpha=2/3,
                    **opt)
         
         scattermsizes += [ax.scatter([None for i in o ], 

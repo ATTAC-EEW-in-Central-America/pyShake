@@ -27,6 +27,8 @@ from matplotlib import colors
 from matplotlib.ticker import AutoMinorLocator
 from matplotlib import cm 
 from matplotlib.colors import NoNorm
+from matplotlib.legend_handler import HandlerPathCollection
+#from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 
 #print(Tp)
@@ -611,6 +613,7 @@ def map(reports,references,
         fig=None,ax=None,
         figsize=(8,8),
         legendsize=True,
+        legendloc=None,
         legendfaults=True,
         subtitle=False,
         colorbar=True,
@@ -709,7 +712,7 @@ def map(reports,references,
     plot({mtype: [ xyz[:6] for xyz in Fp[mtype]] for mtype in Fp},
          mtypes,
          ax,
-         label='F$^{+}_{%s}$',
+         label='Fp$^{%s}$',
          marker='X',
          times=times,
          transform=ccrs.Geodetic(),
@@ -719,7 +722,7 @@ def map(reports,references,
     plot(Fn,
          mtypes,
          ax,
-         label='F$^{-}_{%s}$',
+         label='Fn$^{%s}$',
          marker='s',
          times=times,
          transform=ccrs.Geodetic(),
@@ -738,33 +741,45 @@ def map(reports,references,
 
         h = h2 + h[::-1]
         l = l2 + l[::-1]
+        h = h[::-1]
+        l = l[::-1]
 
     locbar = 'left'
     loclegend = 'right'
     bbox_to_anchor = 0
-    bbox = ax.get_position() 
     
-    if not rightside:
-        locbar = 'right'
-        loclegend = 'left'
-        bbox_to_anchor = 1
-        cax = ax.figure.add_axes([bbox.x0+bbox.width, 
-                                  bbox.y0+bbox.height-bbox.height/2.5, 
-                                  bbox.width/1.5, 
-                                  bbox.height/2.5])
-    else:
-        cax = ax.figure.add_axes([bbox.x0-bbox.width/1.5, 
-                                  bbox.y0+bbox.height-bbox.height/2.5, 
-                                  bbox.width/1.5, 
-                                  bbox.height/2.5])
-    cax.axis('off')
         
     if colorbar:    
+
+        bbox = ax.get_position() 
+
+        if not rightside:
+            locbar = 'right'
+            loclegend = 'left'
+            bbox_to_anchor = 1
+            cax = ax.figure.add_axes([bbox.x0+bbox.width, 
+                                    bbox.y0+bbox.height-bbox.height/2.5, 
+                                    bbox.width/1.5, 
+                                    bbox.height/2.5])
+            
+        else:
+            cax = ax.figure.add_axes([bbox.x0-bbox.width/2.5,#-bbox.width/1.5, 
+                                    bbox.y0+bbox.height/15,#.5bbox.height-bbox.height/2.5, 
+                                    bbox.width/1.5, 
+                                    bbox.height/3])
+            
+            #cax = inset_axes(ax,
+            #                 width="5%",  # width: 50% of parent_bbox width
+            #                 height="5%",  # height: 5%
+            #                 loc="lower left",
+            #                 )
+        cax.axis('off')
+
         for im in scattercmaps:
             cbar = ax.figure.colorbar(im[0], 
                             ax=cax,
                             location=locbar,
-                            fraction=.8,
+                            fraction=0.8,
                             pad=0,
                             panchor=(0,0),
                             #use_gridspec=True,
@@ -779,12 +794,13 @@ def map(reports,references,
 
 
     l=ax.legend(h, l,
-                ncol=1,
-                fontsize='x-small',
+                #ncol=1,
+                #fontsize='x-small',
                 #bbox_to_anchor=(bbox_to_anchor,0), 
-                #loc="lower %s"%loclegend
+                loc=legendloc,
                 )        
-
+    
+    
     t = '%d ev.'%n
 
     if title is not None:
@@ -961,7 +977,7 @@ def errors(reports=None,
         alphas = alphas + max(alphas)/3 
         alphas = alphas / max(alphas)
         
-        c = cm.ScalarMappable(norm=norm, cmap=cmaps[mtype]).to_rgba(dist)
+        c = cm.ScalarMappable(norm=norm, cmap=cmaps[mtype]).to_rgba(dist)#[xyzmte[2] for xyzmte in Tp[mtype]])#
         c[:,-1] = alphas
         
         scattercmaps[mtype] = ax.scatter([nan,nan],[nan,nan],
@@ -978,8 +994,8 @@ def errors(reports=None,
                     marker='oo'[i],           
                     linewidths=1.0,
                     zorder=9999)
-        
-    locbar = 'left'
+
+    locbar = 'left' 
     bbox = ax.get_position() 
     if cax is None:
         if rightside:
@@ -989,12 +1005,15 @@ def errors(reports=None,
                                     bbox.width/1.5, 
                                     bbox.height/2.5])
         else:
-            cax = ax.figure.add_axes([bbox.x0-bbox.width/1.5, 
+            cax = ax.figure.add_axes([bbox.x0-bbox.width/1,#.5, 
                                     bbox.y0+bbox.height-bbox.height/2.5, 
                                     bbox.width/1.5, 
                                     bbox.height/2.5])
     cax.axis('off')
         
+    if len(scattercmaps)==1:
+        locbar = 'right'
+
     if colorbar:    
         for mtype in scattercmaps:
             cbar = ax.figure.colorbar(scattercmaps[mtype], 
@@ -1014,8 +1033,8 @@ def errors(reports=None,
                 locbar = 'left'
             cbar.solids.set(alpha=1)
 
-        cax.set_title('Country\ndistance (km)',
-                      loc=['right','center'][len(Tp)>1])
+        cax.set_title('Country\ndistance (km)',#Depth (km)',#
+                      loc=['left','center'][len(Tp)>1])
 
     l=ax.legend()        
 
@@ -1048,7 +1067,7 @@ def errors(reports=None,
     if legendsize:
         ax.add_artist(l)
         kw = dict(prop="sizes", 
-                    num=4, 
+                    num=[4,5,6], 
                     alpha=0.8,
                     color='k',
                     fmt="M{x:.2g}",
@@ -1211,6 +1230,10 @@ def chronology(reports=None,
               xml=True,
               arrivalrank=4,
               arrivalF=False,
+              legend_marker_size = 70,
+              legend_marker_alpha = 2/3,
+              hlegend_line_length = 1,
+              annotation = None,
               **options):
     """
     Run :func:`pyshake.catalog.alert_accuracy` (supporting all its related 
@@ -1306,6 +1329,7 @@ def chronology(reports=None,
                 for e,xyzmte in enumerate(cl[mtype]):  
                     
                     if xyzmte[14-(j*6)] is None:
+                        print(14-(j*6),xyzmte)
                         continue
 
 
@@ -1353,7 +1377,7 @@ def chronology(reports=None,
                                                 mag2size(asarray([3,7])),
                                                 [nan,nan],
                                                 cmap=cmaps[mtype],   
-                                                norm=norm,
+                                                norm=norm,        
                                                 alpha=0.5)
                 
                 for i,dt in enumerate(d_time):
@@ -1362,13 +1386,13 @@ def chronology(reports=None,
                         print('Ignoring ref/EEW matching issue with:')
                         print(cl[mtype][i])
             
-            ax.scatter(times,
+            sc = ax.scatter(times,
                     d_time,
                     mag2size(asarray(mag)),
                     c,
                     marker='oXs'[j],           
                     linewidths=1.0,
-                    label='%s (%d)'%(['T$^+_{%s}$','F$^+_{%s}$','F$^-_{%s}$'][j]%(mtype[1:]), len(cl[mtype])),
+                    label=('%s (%d)'%(['Tp$^{%s}$','Fp$^{%s}$','Fn$^{%s}$'][j]%(mtype[1:]), len(cl[mtype]))).replace('$^{one}$',''),
                     clip_on = j==0,
                     zorder=9999)
             
@@ -1429,7 +1453,17 @@ def chronology(reports=None,
         cax.set_title('Location\nerror (km, hyp.)',
                       loc=['left','center'][len(Tp)>1])
 
-    l=ax.legend()        
+    if annotation is not None:
+        for k in annotation:
+            ax.axvline(UTCDateTime(annotation[k]),label=k, color='k', linewidth=3, alpha=0.5, zorder = -99)   
+
+    l=ax.legend(handlelength=hlegend_line_length)        
+
+    for lh in l.legendHandles:
+        lh.set_alpha(legend_marker_alpha)
+        if hasattr(lh,'set_sizes'):
+            lh.set_sizes([legend_marker_size])
+
 
     t = '%d ev.'%( n )
 
@@ -1460,7 +1494,7 @@ def chronology(reports=None,
     if legendsize:
         ax.add_artist(l)
         kw = dict(prop="sizes", 
-                    num=4, 
+                    num=[4,5,6], 
                     alpha=0.8,
                     color='k',
                     fmt="M{x:.2g}",
@@ -1493,5 +1527,5 @@ def chronology(reports=None,
     ax.yaxis.set_minor_locator(AutoMinorLocator())
     ax.grid( which='major', color='gray', linestyle='dashdot', zorder=-9999) #b=True,
     ax.grid( which='minor', color='beige',  ls='-', zorder=-9999) #b=True,
-        
+     
     return ax
