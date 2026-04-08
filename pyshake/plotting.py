@@ -250,11 +250,15 @@ def bmap(bounds=[-89, -83, 8, 14],
     if bg: 
         ax.add_image(cimgt.GoogleTiles(url='https://server.arcgisonline.com/arcgis/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}.jpg'), 8)
 
-        ax.add_wms(wms='https://www.gebco.net/data_and_products/gebco_web_services/web_map_service/mapserv',
-                layers=['GEBCO_LATEST'],
-                alpha=1/3,
-                zorder=1
-                )
+        try:
+            ax.add_wms(wms='https://wms.gebco.net/mapserv?',
+                        layers=['GEBCO_LATEST'],
+                        alpha=1/3,
+                        zorder=1,
+                        )
+        except Exception as e:
+            print(e)
+            print('Not available: GEBCO_LATEST')
         if False:
             # Create a Stamen Terrain instance.
             stamen_terrain = cimgt.Stamen('terrain-background')
@@ -278,7 +282,7 @@ def plot(Hyp,
          label='Tp$^{%s}$',
          times=None,
          labelmarkersize=64,
-         facecolors={'Mfd':'C1','MVS':'C2','None':[1,0,1]},
+         facecolors={'Mfd':'red','MVS':'blue','None':[1,0,1]},
          cmaps={'Mfd':'autumn','MVS':'winter','None':None},
          nodt=False,
          **opt):
@@ -328,10 +332,11 @@ def plot(Hyp,
         facecolor = None
         if 'Fp' in label%mt+addlab:
             inputs += [[0]]
+            facecolor=facecolors[mtype]
         if 'Tp' in label%mt+addlab:
             inputs += [[10]]
         if 'Fn' in label%mt+addlab:
-            facecolor=facecolors[mtype],#'C%d'%(len(mtypes)-1-s), 
+            facecolor=facecolors[mtype]#,#'C%d'%(len(mtypes)-1-s), 
 
         ax.scatter(*inputs,
                    edgecolor='k', 
@@ -386,7 +391,14 @@ def plot(Hyp,
                        alpha=a[i], 
                        **opt)
             
-            if mtype in cmaps:
+            if mtype is not 'None' and not nodt:#mtype in cmaps:
+                
+                if dt[i] < 0 :
+                    print('mtype is not None (%s) or not nodt (%s)'%(mtype,nodt))
+                    print(dt[i])
+                    dt[i] = 0
+
+
                 ax.scatter([x[i]], 
                         [y[i]], 
                         [m[i]],
@@ -400,7 +412,7 @@ def plot(Hyp,
                 ax.scatter([x[i]], 
                         [y[i]], 
                         [m[i]],
-                        color=facecolors[mtype],#'C%d'%(len(mtypes)-1-s), 
+                        color=facecolor,#s[mtype],#'C%d'%(len(mtypes)-1-s), 
                         linewidths=0.01, 
                         alpha=a[i],
                         **opt)
@@ -420,7 +432,7 @@ def plot(Hyp,
                         yy[i],
                         alpha=a[i], 
                         linewidth=1, 
-                        color=facecolors[mtype],#'C%d'%(len(mtypes)-1-s), #cmaps[mtypes](dt,norm=norm),#
+                        color=facecolor,#s[mtype],#'C%d'%(len(mtypes)-1-s), #cmaps[mtypes](dt,norm=norm),#
                         solid_capstyle='round',
                         markersize=0,
                         **opt)

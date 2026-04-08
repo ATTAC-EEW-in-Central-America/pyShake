@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name='pyshake',
-    version='1.0.3',
+    version='1.0.4',
     author='Fred Massin',
     author_email='fmassin@ethz.ch',
     description='The EEW Analysis Package for Python',

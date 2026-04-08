@@ -5,7 +5,7 @@ Catalog module.
 
 import io, glob
 
-from numpy import argmin, asarray, sqrt, argsort, nan, sort
+from numpy import argmin, asarray, sqrt, argsort, nan, sort, linspace
 from pandas import read_csv, DataFrame, concat
 import cartopy.crs as ccrs
 
@@ -17,7 +17,7 @@ from pyshake.util import isincountries, eventdistance, eventcountrydistance
 from pyshake.plotting import plot, bmap, size2mag, mag2size
 from pyshake.gm import gmm
 
-import imp
+import importlib as imp
 import pyshake.plotting
 imp.reload(pyshake.plotting)
 plot = pyshake.plotting.plot
@@ -28,6 +28,8 @@ from matplotlib.ticker import AutoMinorLocator
 from matplotlib import cm 
 from matplotlib.colors import NoNorm
 from matplotlib.legend_handler import HandlerPathCollection
+import matplotlib.patheffects as PathEffects
+stroke_effect = [PathEffects.withStroke(linewidth=2, foreground="w")]
 #from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 
@@ -429,7 +431,8 @@ def alert_accuracy(reports, references,
                  Dmin=0.1,    
                  MMImin=4,
                  ipm=gmm,
-                 stationmin=2):
+                 stationmin=2,
+                 final=False):
     """
     Evaluates the accuracy of earthquake reports by comparing their alert
     parameters (from the event first solution over alerting criteria) with the
@@ -470,6 +473,9 @@ def alert_accuracy(reports, references,
     :param ipm: A prediction model to calculate the shaking intensity of a seismic event 
         based on the country distance and magnitude of the event. See :mod:`pyshake.gm`.
     :type ipm: :class:`pyshake.gm.gmm`, optional
+    :param final: If True, only the final event solutions are considered
+        for the analysis.
+    :type final: :py:class:`bool`, optional
 
     :return: Four dictionaries with magnitude type keys include EEW and reference 
         source parameters of Tp (true positives), Fp (false positives), Fn (false 
@@ -507,50 +513,55 @@ def alert_accuracy(reports, references,
 
     for evtid in reports:
 
-        for i,mtype in enumerate(reports[evtid]['Type']):
+        tmp_report = reports[evtid]
+        if final:
+            tmp_report = { k: reports[evtid][k][::-1] for k in reports[evtid] }
+
+        for i,mtype in enumerate(tmp_report['Type']):
+
             if Mtypes is not None and mtype not in Mtypes:
                 continue
             
-            nmag = reports[evtid]['Ma.'][i]
+            nmag = tmp_report['Ma.'][i]
             if nmag is not None and nmag != 0 and nmag<stationmin:
                 print('!!!!!',nmag,'station only in',evtid)
                 continue
-            norg = reports[evtid]['Or.'][i]
+            norg = tmp_report['Or.'][i]
             if norg is not None and norg != 0 and norg<stationmin:
                 print('!!!!!',norg,'station only in',evtid)
                 continue
 
-            m = reports[evtid]['Mag.'][i]
+            m = tmp_report['Mag.'][i]
             if m is None :
                 continue
             if Mmin is not None and m < Mmin:
                 continue
 
-            if reports[evtid]['Lik.'][i] is None :
+            if tmp_report['Lik.'][i] is None :
                 continue
-            if Lmin is not None and reports[evtid]['Lik.'][i] < Lmin:
+            if Lmin is not None and tmp_report['Lik.'][i] < Lmin:
                 continue
             
-            lo = reports[evtid]['Lon.'][i]
-            la = reports[evtid]['Lat.'][i]
-            de = reports[evtid]['Depth'][i]
+            lo = tmp_report['Lon.'][i]
+            la = tmp_report['Lat.'][i]
+            de = tmp_report['Depth'][i]
             di = eventcountrydistance(MMIcountry, 
                                       (lo,la,de))
             mmi = ipm.get_intensity(di,m)
             if MMImin is not None and mmi < MMImin:
                 continue
 
-            dt = reports[evtid]['Tdiff'][i]
-            ot = reports[evtid]['origin time (UTC)'][i]
+            dt = tmp_report['Tdiff'][i]
+            ot = tmp_report['origin time (UTC)'][i]
             eew = [lo,la,de,m,ot,dt,evtid]
 
-            refsol = reports[evtid]['reference solution'][i]
+            refsol = tmp_report['reference solution'][i]
             if evtid in FPids :
                 Fp[mtype] += [eew]
 
             elif refsol is None or len(refsol)==0:
                 print('Extra False positive: There is no reference solution for the following EEW')
-                print(','.join(['%s: %s'%(k,reports[evtid][k][i]) for k in reports[evtid]]))
+                print(','.join(['%s: %s'%(k,tmp_report[k][i]) for k in tmp_report]))
                 Fp[mtype] += [eew]
 
             else:
@@ -559,7 +570,7 @@ def alert_accuracy(reports, references,
                 de = refsol.depth
                 m = refsol.mag
                 ot = refsol.time
-                dt = reports[evtid]['Creation t.'][i] - refsol.time 
+                dt = tmp_report['Creation t.'][i] - refsol.time 
                 Tp[mtype] += [[lo,la,de,m,ot,dt]+eew]         
 
             bounds = [min([bounds[0],lo]),
@@ -613,6 +624,7 @@ def map(reports,references,
         fig=None,ax=None,
         figsize=(8,8),
         legendsize=True,
+        legendsizenum=4,
         legendloc=None,
         legendfaults=True,
         subtitle=False,
@@ -717,6 +729,8 @@ def map(reports,references,
          times=times,
          transform=ccrs.Geodetic(),
          nodt=True,
+         #facecolors={'Mfd':[1,0,0],'MVS':[0,0,1],'None':[1,0,1]},
+         #cmaps={'Mfd':None,'MVS':None,'None':None},
          zorder=98)
     
     plot(Fn,
@@ -726,6 +740,7 @@ def map(reports,references,
          marker='s',
          times=times,
          transform=ccrs.Geodetic(),
+         nodt=True,
          zorder=99)
     
     ax.legend()
@@ -733,7 +748,7 @@ def map(reports,references,
 
     if legendsize:
         kw = dict(prop="sizes", 
-            num=4, 
+            num=legendsizenum, 
             color='k',#scatter[0].cmap(scatter[0].norm(150)), 
             fmt="M{x:.2g}",
             func=size2mag)
@@ -791,6 +806,25 @@ def map(reports,references,
                 locbar = 'right'
             else:
                 locbar = 'left'
+
+            # Apply path_effects to the colorbar components
+            # 1. Ticks and Tick Labels
+            for tick in cbar.ax.get_yticklines():  # Tick lines
+                tick.set_path_effects(stroke_effect)
+            for label in cbar.ax.get_yticklabels():  # Tick labels
+                label.set_path_effects(stroke_effect)
+
+            # 2. Axis Label
+            cbar.ax.yaxis.label.set_path_effects(stroke_effect)
+
+            # 3. Title (if any)
+            if cbar.ax.title:
+                cbar.ax.title.set_path_effects(stroke_effect)
+
+            # 4. Axis Spine
+            for spine in cbar.ax.spines.values():
+                spine.set_path_effects(stroke_effect)
+
 
 
     l=ax.legend(h, l,
@@ -902,6 +936,7 @@ def errors(reports=None,
            cax=None,
            legendsize=True,
            lax=None,
+           final=False,
            **options):
     """
     Run :func:`pyshake.catalog.alert_accuracy` (supporting all its related 
@@ -938,14 +973,15 @@ def errors(reports=None,
     if 'stationmin' not in options:
         options['stationmin']=None
 
-    if TFpn is None:
+    if TFpn is None or final:
         Tp, Fp, Fn, bounds = alert_accuracy(reports,references,
                                         Mmin=options['Mmin'],
                                         Lmin=options['Lmin'],
                                         Mtypes=options['Mtypes'],
                                         MMIcountry=options['MMIcountry'],
                                         MMImin=options['MMImin'],
-                                        stationmin=options['stationmin'])
+                                        stationmin=options['stationmin'],
+                                        final=final)
     else:
          Tp, Fp, Fn, bounds = TFpn
 
@@ -1033,7 +1069,7 @@ def errors(reports=None,
                 locbar = 'left'
             cbar.solids.set(alpha=1)
 
-        cax.set_title('Country\ndistance (km)',#Depth (km)',#
+        cax.set_title('Distance\nfrom national\nborder (km)',#Depth (km)',#
                       loc=['left','center'][len(Tp)>1])
 
     l=ax.legend()        
@@ -1067,7 +1103,7 @@ def errors(reports=None,
     if legendsize:
         ax.add_artist(l)
         kw = dict(prop="sizes", 
-                    num=[4,5,6], 
+                    num=4,#[4.5,5.5,6.5], 
                     alpha=0.8,
                     color='k',
                     fmt="M{x:.2g}",
@@ -1230,10 +1266,13 @@ def chronology(reports=None,
               xml=True,
               arrivalrank=4,
               arrivalF=False,
+              legendsizenum=4,
               legend_marker_size = 70,
               legend_marker_alpha = 2/3,
               hlegend_line_length = 1,
               annotation = None,
+              alphathreshold = 70,
+              eventlines=True,
               **options):
     """
     Run :func:`pyshake.catalog.alert_accuracy` (supporting all its related 
@@ -1282,7 +1321,7 @@ def chronology(reports=None,
          Tp, Fp, Fn, bounds = TFpn
 
     def _forward(x):
-        return sqrt(x)
+         return sqrt(x)
     def _inverse(x):
         return x**2
 
@@ -1290,14 +1329,30 @@ def chronology(reports=None,
                             vmin=0, 
                             vmax=200)
     
-    def linnorm(x):
-        y = 1 - asarray(x)/150 #asarray(sortarg(times)) + 1
-        try:
-            y[y>1]=1
-            y[y<0]=0
-        except:
-            pass
+    def linnorm(x,themax):
+        y = 1 - asarray(x)/themax #asarray(sortarg(times)) + 1
+        if isinstance(y,float):
+            if y > 1:
+                y = 1
+            elif y < 0:
+                y = 0
+            elif y>0.5:
+                y = 1
+            elif y<=0.5:
+                y = 0
+        else:
+            for i,v in enumerate(y):
+                if v > 1:
+                    y[i] = 1
+                elif v < 0:
+                    y[i] = 0
+                elif v>0.5:
+                    y[i] = 1
+                elif v<=0.5:
+                    y[i] = 0        
+        
         y = y * 3/4 + 1/4 #/ max(alphas)
+
         return y
 
     scattercmaps={}
@@ -1338,7 +1393,17 @@ def chronology(reports=None,
                     test = magnitude.creation_info.creation_time - xyzmte[10-(j*6)]                    
                     d_time[e] = test
                     
-                    event = xyzmte[15-(j*6)][0]
+                    if j==2 or j==1:
+                        continue
+                    
+                    try:
+                        event = xyzmte[15-(j*6)][0]
+                        print('OK pref reference origin')
+                    except Exception as e:
+                        print('cannot get pref reference origin for')
+                        print(xyzmte)
+                        continue
+
                     if len(event.origins)>1:
                         print('Not sure to get preferred origin for ')
                         print(event)
@@ -1357,9 +1422,12 @@ def chronology(reports=None,
 
                     if len(test)>=arrivalrank:
                         arrivals[e] = sort(test)[arrivalrank-1] - preforgtime # xyzmte[10-(j*6)] 
-
+                    
+                    if arrivals[e] > d_time[e]:
+                        print('Incomplete picking for event',event)
+                        arrivals[e] = nan
                 
-            alphas = linnorm(dist)
+            alphas = linnorm(dist,alphathreshold*2) #asarray(sortarg(times)) + 1
             
             c = cm.ScalarMappable(norm=norm, cmap=cmaps[mtype]).to_rgba(d_hyp)#dist)
             c[:,-1] = alphas
@@ -1368,6 +1436,16 @@ def chronology(reports=None,
                 c[:,0] = 1
                 c[:,1] = 0
                 c[:,2] = 1
+
+
+            fc = c.copy()
+            for i in range(len(fc)):
+                if fc[i,-1] != 1:
+                    fc[i] = [1,1,1,1]
+                    c[i,-1] = 1
+
+            # order for c[i,-1] ==1 below
+            dorder = argsort(c[:,-1])[::-1]
 
             if j==0 or j==2:
                 n += len(cl[mtype])
@@ -1386,23 +1464,49 @@ def chronology(reports=None,
                         print('Ignoring ref/EEW matching issue with:')
                         print(cl[mtype][i])
             
-            sc = ax.scatter(times,
-                    d_time,
-                    mag2size(asarray(mag)),
-                    c,
-                    marker='oXs'[j],           
+            if eventlines:
+                for k,t in enumerate(times):
+                    ax.plot([t,t],
+                            [arrivals[k],d_time[k]],
+                            color=c[k],
+                            linewidth=0.5,
+                            )
+            
+            ax.scatter([times[i] for i in dorder],
+                    [d_time[i] for i in dorder],
+                    mag2size(asarray([mag[i] for i in dorder])),                        
+                    [1,1,1],
+                    marker='oXs'[j],                           
                     linewidths=1.0,
-                    label=('%s (%d)'%(['Tp$^{%s}$','Fp$^{%s}$','Fn$^{%s}$'][j]%(mtype[1:]), len(cl[mtype]))).replace('$^{one}$',''),
                     clip_on = j==0,
                     zorder=9999)
-            
-            ax.scatter(times,
-                    arrivals,
-                    mag2size(asarray(mag)),
-                    c,
+                    
+            ax.scatter([times[i] for i in dorder],
+                    [arrivals[i] for i in dorder],
+                    mag2size(asarray([mag[i] for i in dorder])),                        
+                    [1,1,1],
                     marker='___'[j],           
                     linewidths=2.5,
                     zorder=9999)
+            
+            sc = ax.scatter([times[i] for i in dorder],
+                    [d_time[i] for i in dorder],
+                    mag2size(asarray([mag[i] for i in dorder])),                        
+                    facecolors=[fc[i] for i in dorder],
+                    edgecolors=[c[i] for i in dorder],
+                    marker='oXs'[j],                           
+                    linewidths=1.5,
+                    label=('%s (%d)'%(['Tp$^{%s}$','Fp$^{%s}$','Fn$^{%s}$'][j]%(mtype[1:]), len(cl[mtype]))).replace('$^{one}$',''),
+                    clip_on = j==0,
+                    zorder=9999)
+                    
+            ax.scatter([times[i] for i in dorder],
+                    [arrivals[i] for i in dorder],
+                    mag2size(asarray([mag[i] for i in dorder])),                        
+                    [c[i] for i in dorder],
+                    marker='___'[j],           
+                    linewidths=2.5,
+                    zorder=99999)
         
         
     ax.scatter([nan,nan],
@@ -1494,7 +1598,7 @@ def chronology(reports=None,
     if legendsize:
         ax.add_artist(l)
         kw = dict(prop="sizes", 
-                    num=[4,5,6], 
+                    num=legendsizenum,
                     alpha=0.8,
                     color='k',
                     fmt="M{x:.2g}",
@@ -1507,14 +1611,16 @@ def chronology(reports=None,
                             loc='lower left')
         lax.add_artist(l)
         
-        for d in [150,75,0]:
+        for n,d in enumerate([alphathreshold+1,alphathreshold-1]):
             lax.scatter([nan],[nan],
                         mag2size(asarray([5])),
-                        'k',
-                        label='%d'%d,
-                        alpha=linnorm(d))
+                        edgecolors='k',
+                        facecolors='kw'[n],
+                        label='<>'[n]+f'{alphathreshold}',
+                        #alpha=linnorm(d, alphathreshold*2)
+                        )
             
-        l = lax.legend(title="Country\ndistance\n(km)",
+        l = lax.legend(title="Distance\nfrom national\nborder (km)",
                             loc='upper left')
         lax.add_artist(l)
 

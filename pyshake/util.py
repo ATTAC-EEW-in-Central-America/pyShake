@@ -260,20 +260,21 @@ def eventcountrydistance(countryname,
             elon = [event[0]]+[l for l in numpy.linspace(event[0],elon,int(event[3]/res))]+[elon]
             elat = [event[1]]+[l for l in numpy.linspace(event[1],elat,int(event[3]/res))]+[elat]
 
-            events[e] = LineString([(elon[p],elat[p]) for p in range(len(elon))])
-            events[e].depth = event[2]
+            events[e] = { 'line' : LineString([(elon[p],elat[p]) for p in range(len(elon))]),
+                          'depth' : event[2] }
         elif len(event)==3:
-            events[e] = LineString([(event[0],event[1]), (event[0],event[1])])
-            events[e].depth = event[2]
+            events[e] = { 'line' : LineString([(event[0],event[1]), (event[0],event[1])]),
+                          'depth' : event[2] }
         elif len(event)==2:
-            events[e] = LineString([(event[0],event[1]), (event[0],event[1])])
-            events[e].depth = defaultdepth
+            events[e] = { 'line' : LineString([(event[0],event[1]), (event[0],event[1])]),
+                          'depth' :defaultdepth }
         else:
             print('ERROR: Input are not at least 2d:')
             print(event)
-        if events[e].depth is None:
+
+        if events[e]['depth'] is None:
             print('WARNING: Event (%s) depth is None, using %s default depth)'%(','.join(['%s'%f for f in event]), defaultdepth))
-            events[e].depth = defaultdepth
+            events[e]['depth'] = defaultdepth
     
     distances=[None for e in events]
     url = shpreader.natural_earth(resolution='110m',
@@ -290,17 +291,17 @@ def eventcountrydistance(countryname,
         country=country[0]
         
         for e,event in enumerate(events):
-            if country.geometry.intersects(event):
+            if country.geometry.intersects(event['line']):
                 #print('INFO: Event intersects %s using depth %d km as country distance'%(countryname, event.depth))
-                distances[e] = ( event.depth**2 + defaultepd**2 )**.5
+                distances[e] = ( event['depth']**2 + defaultepd**2 )**.5
             else:
                 if quickndirty:
                     print('WARNING: Event outside %s using shapely distance as country distance (can be VERY incorrect)'%(countryname))
-                    distances[e] = ((country.geometry.distance(event)*111.2)**2 + event.depth**2)**.5 
+                    distances[e] = ((country.geometry.distance(event['line'])*111.2)**2 + event['depth']**2)**.5 
                 else:
-                    impact_trajectory = nearest_points(event,country.geometry)
+                    impact_trajectory = nearest_points(event['line'],country.geometry)
                     impact_trajectory = [c for p in impact_trajectory for c in p.coords[:][0][::-1]]
-                    distances[e] = ((gps2dist_azimuth(*impact_trajectory)[0]/1000)**2 + event.depth**2)**.5
+                    distances[e] = ((gps2dist_azimuth(*impact_trajectory)[0]/1000)**2 + event['depth']**2)**.5
     if single:
         return distances[0]
     return distances
